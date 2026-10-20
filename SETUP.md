@@ -21,6 +21,8 @@ This lets the site offer "Sign in with Google".
 
 ## 2. Add the code to the Google Sheet
 
+**Before you continue:** copy the old hand-typed **Spent** column from the Finance Tracker tab somewhere safe (for example, paste it into a new tab). Once the site is deployed (step 3), the first time any allowed user loads it, it overwrites those Spent cells.
+
 1. Open the finance Google Sheet. Click **Extensions → Apps Script**.
 2. Delete any existing code. Create these files (the **+** next to "Files" → **Script**), named exactly, and paste in the matching file from the `apps-script` folder of this repo:
    - `logic.gs`
@@ -69,13 +71,15 @@ Commit and push to GitHub.
 
 ## 6. Give execs access
 
-Open the **Site Access** tab in the Google Sheet. Column A holds one email per row (the director is already listed). Add each exec's Google email on a new row. To remove access, delete the row. Changes apply the next time the site loads. Each exec must also be able to pass Google sign-in: the app must be published (step 1), or every exec must be listed as a test user.
+Open the **Site Access** tab in the Google Sheet. Column A holds one email per row (the director is already listed). Add each exec's Google email on a new row. Exec emails must be their @berkeley.edu address (only the director may use a different domain); other domains are refused. To remove access, delete the row. Changes apply the next time the site loads. Each exec must also be able to pass Google sign-in: the app must be published (step 1), or every exec must be listed as a test user.
+
+**Finish step 7 before sharing the link with exec.**
 
 Execs see the data but have no edit controls. Anyone not listed sees an access message.
 
 ## 7. Day-one migration (do this right away)
 
-The site computes each budget line's **Spent** from the requests assigned to it, and **overwrites the hand-typed Spent cells in the Finance Tracker the first time anyone allowed (director or exec) loads it**. Until requests are assigned, those will likely show $0. Before anyone opens the site, copy the old Spent numbers somewhere safe, and do the migration below before sharing the link with execs.
+The site computes each budget line's **Spent** from the requests assigned to it, and **overwrites the hand-typed Spent cells in the Finance Tracker the first time anyone allowed (director or exec) loads it**. Until requests are assigned, those will likely show $0. You should already have saved the old Spent numbers (see the start of step 2); do the migration below before sharing the link with execs.
 
 Then, signed in as the director:
 
