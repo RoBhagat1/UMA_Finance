@@ -1,189 +1,93 @@
-# UMA Finance Reimbursement System — Setup Guide
+# UMA Finance Reimbursement Tracker: Setup Guide
 
-## What This Does
+The site reads and writes your existing Google Sheet. The Director of Finance signs in with Google, assigns each reimbursement request to a budget line, and moves it through its stages. Execs on the allowlist can view. Everyone else sees an access message.
 
-Members fill out a Google Form to request reimbursement. You (the treasurer) get an email with all the details and three buttons: **Approve via Venmo**, **Approve via ASUC Reimburse**, or **Deny**. Clicking a button automatically updates the log sheet and deducts from the correct budget category.
-
----
-
-## Step 1 — Open Apps Script
-
-1. Open your UMA Finance **Google Sheet**
-2. Click **Extensions → Apps Script**
-3. Delete any existing code in the editor
+You need: edit access to the Google Sheet, a Google account, a GitHub account with this repo, and a Vercel account (free).
 
 ---
 
-## Step 2 — Paste the Script Files
+## 1. Create a Google sign-in key (OAuth Client ID)
 
-Create the following files in the Apps Script editor. For each one, click the **+** button next to "Files" and choose **Script**, name it exactly as shown, then paste the contents.
+This lets the site offer "Sign in with Google".
 
-| File | Contents |
-|---|---|
-| `config.gs` | Paste from `config.gs` |
-| `Code.gs` | Paste from `Code.gs` (replaces the default `Code.gs`) |
-| `formHandler.gs` | Paste from `formHandler.gs` |
-| `email.gs` | Paste from `email.gs` |
-| `approval.gs` | Paste from `approval.gs` |
+1. Go to https://console.cloud.google.com and create a project (any name, e.g. "UMA Finance").
+2. Open **APIs & Services → OAuth consent screen**. Choose **External**, fill in the app name and your email, and save. If asked, add yourself as a test user or publish the app.
+3. Open **APIs & Services → Credentials → Create Credentials → OAuth client ID**.
+4. Application type: **Web application**.
+5. Under **Authorized JavaScript origins**, add both:
+   - `http://localhost:3000`
+   - your Vercel site URL (you will get it in step 5; come back and add it then)
+6. Click **Create** and copy the **Client ID** (ends in `.apps.googleusercontent.com`).
 
----
+## 2. Add the code to the Google Sheet
 
-## Step 3 — Configure `config.gs`
+1. Open the finance Google Sheet. Click **Extensions → Apps Script**.
+2. Delete any existing code. Create these files (the **+** next to "Files" → **Script**), named exactly, and paste in the matching file from the `apps-script` folder of this repo:
+   - `logic.gs`
+   - `config.gs`
+   - `sheets.gs`
+   - `Code.gs`
+3. Click the gear icon (**Project Settings**) and tick **Show "appsscript.json" manifest file in editor**. Go back to the editor, open `appsscript.json`, and paste in the repo's `apps-script/appsscript.json`.
+4. In `config.gs`, replace:
+   - `DIRECTOR_EMAIL` with the Director of Finance's Google email
+   - `GOOGLE_CLIENT_ID` with the Client ID from step 1
+5. Click **Save**. Choose `setupSheets` in the function dropdown and click **Run**. Approve the permission prompts (click Advanced → Go to project if Google warns you).
+6. Open **Execution log**. It should end with `requiredMissing: []`. If it lists names instead, a column header in the "Reimbursements Tracker" tab does not match what the site expects. Rename those headers in the sheet, then run `setupSheets` again.
+7. `setupSheets` also creates two tabs: **One-off Expenses** and **Site Access**.
+8. Check the data: choose `debugState` and click **Run**. In the log, confirm:
+   - the number of requests looks right
+   - the budget lines and their budgets match the Finance Tracker tab
+   - no phone numbers, UIDs, or addresses appear
 
-Open `config.gs` and fill in these three values:
+## 3. Deploy the Apps Script as a web app
 
-```javascript
-TREASURER_EMAIL: "your-email@berkeley.edu",
-SECRET_TOKEN: "uma-finance-2024-abc123xyz",  // make up any random string
-WEB_APP_URL: "PASTE_WEB_APP_URL_HERE",       // fill this in after Step 5
+1. Click **Deploy → New deployment**. Click the gear and choose **Web app**.
+2. **Execute as:** Me. **Who has access:** Anyone. (The site checks who is signed in itself.)
+3. Click **Deploy**, approve permissions, and copy the **Web app URL**.
+
+**Important:** any time you change the code later, the live site will not update until you go to **Deploy → Manage deployments → pencil icon → Version: New version → Deploy**. The URL stays the same.
+
+## 4. Put the URLs in the site config
+
+Edit `web/config.js` in the repo:
+
+```js
+window.APP_CONFIG = {
+  API_URL: "<Web app URL from step 3>",
+  GOOGLE_CLIENT_ID: "<Client ID from step 1>"
+};
 ```
 
-**For SECRET_TOKEN:** just type any random mix of letters and numbers. It's used to make approval links secure.
+Commit and push to GitHub.
 
----
+## 5. Publish on Vercel
 
-## Step 4 — Run One-Time Setup
+1. In Vercel, click **Add New → Project** and import the GitHub repo.
+2. Set **Root Directory** to `web`, **Framework Preset** to **Other**, and leave the build command empty.
+3. Click **Deploy**. Copy the site URL.
+4. Return to the Google Cloud credentials (step 1) and add that URL as an Authorized JavaScript origin.
 
-In the Apps Script editor, run these two functions once (use the dropdown at the top to select each function, then click ▶ Run):
+## 6. Give execs access
 
-1. **`createSubmissionsSheet`** — creates the "Submissions" tab in your spreadsheet
-2. **`setupTrigger`** — registers the form submission trigger
+Open the **Site Access** tab in the Google Sheet. Column A holds one email per row (the director is already listed). Add each exec's Google email on a new row. To remove access, delete the row. Changes apply the next time the site loads.
 
-You'll be asked to grant permissions — click through and authorize.
+Execs see the data but have no edit controls. Anyone not listed sees an access message.
 
----
+## 7. Day-one migration (do this right away)
 
-## Step 5 — Deploy as Web App
+The site computes each budget line's **Spent** from the requests assigned to it, and **overwrites the hand-typed Spent cells in the Finance Tracker the first time it loads**. Until requests are assigned, those will likely show $0. Before the first load, copy the old Spent numbers somewhere safe.
 
-This lets the approval buttons in email actually work.
+Then, signed in as the director:
 
-1. Click **Deploy → New deployment**
-2. Click the gear icon ⚙ next to "Type" → choose **Web app**
-3. Set **"Execute as"** → Me
-4. Set **"Who has access"** → Anyone
-5. Click **Deploy**
-6. Copy the **Web app URL** that appears
+1. Assign each existing request to its budget line.
+2. Enter any spending that is not a reimbursement (for example Savings $260) as a **one-off expense**.
+3. Compare the Finance Tracker's Spent column with your saved numbers.
 
-Now go back to `config.gs` and paste that URL into `WEB_APP_URL`.
+## 8. Quick end-to-end check
 
-> **Important:** Any time you edit the script after this, you must do **Deploy → Manage deployments → Edit → New version** to push the update. Just saving the file is not enough.
-
----
-
-## Step 6 — Create the Google Form
-
-Create a new Google Form with the following fields **in this exact order**. The question titles must match exactly — the script uses them to find the right data.
-
-### Section 1: Personal Info
-| Question | Type | Required |
-|---|---|---|
-| First Name | Short answer | Yes |
-| Last Name | Short answer | Yes |
-| Phone Number | Short answer | Yes |
-| What is your UID? | Short answer | Yes |
-| What is your Venmo @? | Short answer | Yes |
-
-Add a description to the UID question:
-> To find your UID, search your name in the [UC Berkeley Campus Directory](https://www.berkeley.edu/directory). Your UID is NOT your Student ID.
-
-### Section 2: Expense Info
-| Question | Type | Options / Notes |
-|---|---|---|
-| Date of Expense | Date | Must match your receipt |
-| Budget Category | Dropdown | Use the 15 categories (see below) |
-| Type of Expense | Multiple choice | food, copies/printing, supplies, travel, drink, other |
-| If you chose "Other" above, please explain below | Short answer | Not required |
-| Please explain what you bought in more detail | Paragraph | Yes |
-| Did you buy this item? | Multiple choice | Yes, No |
-
-Add a description to "Did you buy this item?":
-> If you used a card not under your name (e.g. your parent's card), select No — we'll need additional info.
-
-**Budget Category dropdown options** (add all 15):
-- Welcome Dinner
-- Recruitment Budget
-- PR Budget
-- Design Team Budget
-- Events Team Budget
-- Strategy Team 1 Budget
-- Strategy Team 2 Budget
-- Strategy Team 3 Budget
-- EVP Budget
-- Retreat
-- Banquet
-- Exec Social
-- Merch
-- IVP / Misc Social Budget
-- Savings
-
-### Section 3: Third-Party Card (conditional — only shown if "Did you buy this item?" = No)
-| Question | Type |
-|---|---|
-| Name of person whose card you used | Short answer |
-| Cardholder's full mailing address | Paragraph |
-
-Add description:
-> ASUC will mail them a check. Please provide their FULL mailing address including zip code.
-
-Set up branching: in the "Did you buy this item?" question, click the three dots → **"Go to section based on answer"** → Yes → go to Section 4 (Item 1), No → go to Section 3 (Third-Party Card). After Section 3, go to Section 4.
-
-### Section 4: Item 1
-| Question | Type |
-|---|---|
-| Vendor/Store Name (Item 1) | Short answer |
-| Physical Location (Item 1) | Short answer |
-| Full Price (Item 1) | Short answer |
-| Receipt (Item 1) | File upload (PDF) |
-| Do you need to be reimbursed for another item? | Multiple choice: Yes, No |
-
-Set branching: Yes → Section 5 (Item 2), No → Section 6 (Payment).
-
-### Section 5: Item 2 (optional)
-Same 4 item fields + another item question → Section 6 (Item 3) or Section 7 (Payment).
-
-### Section 6: Item 3 (optional)
-Same 4 item fields (no more items after this).
-
-### Section 7: Payment
-| Question | Type | Notes |
-|---|---|---|
-| How Would You Like To Be Paid Back? | Multiple choice | Direct Deposit, Pickup, Mailed Check |
-| Full mailing address | Paragraph | In case check needs to be mailed |
-
-Add a description to the payment question:
-> **Note:** Pickup is quicker. Mailed check can get lost. For large amounts, we suggest pickup or direct deposit. Direct deposit is most convenient but requires a one-time sign-up with ASUC.
-
-For Direct Deposit: add a section description or separate "text" question (not collected) explaining:
-> If requesting direct deposit, please fill out the ASUC Direct Deposit form first: [ASUC Form Link]. **DO NOT submit this form until you have submitted the ASUC direct deposit form.** You only need to enroll once per year.
-
-### Link the Form to the Sheet
-
-1. In Google Forms, click the **Responses** tab
-2. Click the green Sheets icon → **Select existing spreadsheet** → choose your UMA Finance sheet
-3. This links the form so the trigger fires on submit
-
----
-
-## Step 7 — Test It
-
-1. Submit a test response through the form
-2. Check that a new row appears in the **Submissions** tab with Status = "Pending"
-3. Check that you received an approval email
-4. Click **Approve — Venmo** → confirm the status updates and the Budget sheet's Spent/Remaining update
-5. Try **Deny** on a second test → confirm no budget change
-
----
-
-## Troubleshooting
-
-**Approval buttons don't work**
-→ Make sure `WEB_APP_URL` in `config.gs` is set and you redeployed after saving.
-
-**Budget category not updating**
-→ The category name in the form dropdown must match the Budget sheet column A exactly (including spacing and capitalization).
-
-**Not receiving emails**
-→ Check `TREASURER_EMAIL` in `config.gs`. Also check spam.
-
-**"Already processed" message when clicking a button**
-→ The submission was already approved or denied. Check the Submissions sheet for its current status.
+1. Sign in as the director. Assign one request to a budget line. The Finance Tracker's **Spent** cell for that line should change.
+2. Set that request to **Stage 3**. The Stage 2 and Stage 3 checkboxes in the Reimbursements tab should both be ticked.
+3. Cancel the request. **Spent** should go back to its earlier value.
+4. Add a one-off expense, check it appears in the One-off Expenses tab, then delete it.
+5. Sign in as an exec listed in Site Access. You should see data but no edit controls.
+6. Sign in with an account not listed. You should see the access message.
