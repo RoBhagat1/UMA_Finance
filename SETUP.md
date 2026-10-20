@@ -11,7 +11,7 @@ You need: edit access to the Google Sheet, a Google account, a GitHub account wi
 This lets the site offer "Sign in with Google".
 
 1. Go to https://console.cloud.google.com and create a project (any name, e.g. "UMA Finance").
-2. Open **APIs & Services → OAuth consent screen**. Choose **External**, fill in the app name and your email, and save. If asked, add yourself as a test user or publish the app.
+2. Open **APIs & Services → OAuth consent screen**. Choose **External**, fill in the app name and your email, and save. Then click **Publish app** (basic sign-in needs no Google verification). If you leave it in Testing mode instead, every exec who will sign in must be added as a test user here, or Google blocks them before the site's own access check.
 3. Open **APIs & Services → Credentials → Create Credentials → OAuth client ID**.
 4. Application type: **Web application**.
 5. Under **Authorized JavaScript origins**, add both:
@@ -69,13 +69,13 @@ Commit and push to GitHub.
 
 ## 6. Give execs access
 
-Open the **Site Access** tab in the Google Sheet. Column A holds one email per row (the director is already listed). Add each exec's Google email on a new row. To remove access, delete the row. Changes apply the next time the site loads.
+Open the **Site Access** tab in the Google Sheet. Column A holds one email per row (the director is already listed). Add each exec's Google email on a new row. To remove access, delete the row. Changes apply the next time the site loads. Each exec must also be able to pass Google sign-in: the app must be published (step 1), or every exec must be listed as a test user.
 
 Execs see the data but have no edit controls. Anyone not listed sees an access message.
 
 ## 7. Day-one migration (do this right away)
 
-The site computes each budget line's **Spent** from the requests assigned to it, and **overwrites the hand-typed Spent cells in the Finance Tracker the first time it loads**. Until requests are assigned, those will likely show $0. Before the first load, copy the old Spent numbers somewhere safe.
+The site computes each budget line's **Spent** from the requests assigned to it, and **overwrites the hand-typed Spent cells in the Finance Tracker the first time anyone allowed (director or exec) loads it**. Until requests are assigned, those will likely show $0. Before anyone opens the site, copy the old Spent numbers somewhere safe, and do the migration below before sharing the link with execs.
 
 Then, signed in as the director:
 
