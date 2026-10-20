@@ -58,8 +58,16 @@
     Api.call(action, payload).then(function (res) {
       if (handleResult(res)) { render(); return; }
       if (res.error === 'unauthenticated') return;
+      var msg = res.message || 'Something went wrong.';
+      if (action === 'updateRequest' && payload.id) {
+        // Re-render so controls show what is actually saved, then show the error.
+        render();
+        var again = root.querySelector('.err[data-req="' + String(payload.id).replace(/"/g, '') + '"]');
+        if (again) again.textContent = msg;
+        return;
+      }
       ctl.forEach(function (c) { c.disabled = false; });
-      errBox.textContent = res.message || 'Something went wrong.';
+      errBox.textContent = msg;
     });
   }
 
@@ -84,7 +92,7 @@
   function drawButton() {
     var box = document.getElementById('gsi-button');
     if (!gsiLoaded || !box || !window.google) return;
-    google.accounts.id.initialize({ client_id: window.APP_CONFIG.GOOGLE_CLIENT_ID, callback: onCredential });
+    google.accounts.id.initialize({ client_id: window.APP_CONFIG.GOOGLE_CLIENT_ID, callback: onCredential, auto_select: true });
     google.accounts.id.renderButton(box, { theme: 'outline', size: 'large' });
   }
 
@@ -151,21 +159,11 @@
       var list = active.filter(pred);
       if (list.length) groups.push({ title: title, list: list });
     }
-    var known = {};
-    state.budgetLines.forEach(function (l) { known[l.name] = true; });
-    group('Unassigned', function (r) { return !r.budgetLine; });
+    group('Unassigned', function (r) { return !r.budgetLine || r.orphaned; });
     state.budgetLines.forEach(function (l) { group(l.name, function (r) { return r.budgetLine === l.name; }); });
-    var seen = {};
-    active.forEach(function (r) {
-      if (r.budgetLine && !known[r.budgetLine] && !seen[r.budgetLine]) {
-        seen[r.budgetLine] = true;
-        var name = r.budgetLine;
-        group(name, function (x) { return x.budgetLine === name; });
-      }
-    });
     if (!state.requests.length) root.appendChild(el('p', { class: 'empty', text: 'No reimbursement requests yet.' }));
     groups.forEach(function (g) {
-      root.appendChild(el('h3', { text: g.title }));
+      root.appendChild(el('h3', { text: g.title === 'Unassigned' ? 'Unassigned — ' + F.formatCurrency(state.unassignedTotal) : g.title }));
       g.list.forEach(function (r) { root.appendChild(requestCard(r, isDir)); });
     });
     if (cancelled.length) {
@@ -216,6 +214,7 @@
 
   function requestControls(r) {
     var err = el('div', { class: 'err' });
+    err.setAttribute('data-req', String(r.id));
     var lineSel = el('select', { title: 'Budget line' }, [el('option', { value: '', text: 'Unassigned' })]);
     var names = state.budgetLines.map(function (l) { return l.name; });
     if (r.budgetLine && names.indexOf(r.budgetLine) < 0) names.push(r.budgetLine);
@@ -227,10 +226,12 @@
     stageSel.value = String(r.stage);
 
     var amt = el('input', { type: 'number', step: '0.01', min: '0', placeholder: 'Override $', title: 'Amount override' });
+    if (r.amountOverridden && r.amount !== null && r.amount !== undefined) amt.value = String(r.amount);
     var setBtn = el('button', { text: 'Set amount' });
     var clrBtn = el('button', { text: 'Clear override' });
     var cancelBtn = el('button', { class: r.cancelled ? '' : 'danger', text: r.cancelled ? 'Restore' : 'Cancel request' });
     var all = [lineSel, stageSel, amt, setBtn, clrBtn, cancelBtn];
+    if (!r.amountOverridden) clrBtn.style.display = 'none';
 
     lineSel.addEventListener('change', function () {
       mutate('updateRequest', { id: r.id, budgetLine: lineSel.value || null }, all, err);
@@ -307,7 +308,7 @@
         if (window.confirm('Delete this one-off expense?')) mutate('deleteOneOff', { id: o.id }, [edit, del], err);
       });
       card.appendChild(el('div', { class: 'card-top' }, [
-        el('div', {}, [el('div', { class: 'card-name', text: o.description }), el('div', { class: 'meta', text: o.date + ' · ' + o.budgetLine })]),
+        el('div', {}, [el('div', { class: 'card-name', text: o.description }), el('div', { class: 'meta', text: o.date + ' · ' + (o.budgetLine || 'Unassigned') })]),
         el('span', { class: 'amount', text: F.formatCurrency(o.amount) })
       ]));
       card.appendChild(el('div', { class: 'controls' }, [edit, del, err]));
