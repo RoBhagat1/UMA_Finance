@@ -215,4 +215,78 @@ function checkAccess(email, allowlist, directorEmail) {
   return { allowed: listed && /@berkeley\.edu$/.test(e), isDirector: false };
 }
 
-if (typeof module !== "undefined") module.exports = { parsePrice, requestAmount, stageFromChecks, checksForStage, normalizeName, computeBudgets, mapColumns, requiredMissing, rowsToRequests, toPublicRequest, checkAccess };
+var READ_ACTIONS = ["getState"];
+var MUTATION_ACTIONS = ["updateRequest", "addOneOff", "updateOneOff", "deleteOneOff"];
+
+function authorize(action, access) {
+  var isRead = READ_ACTIONS.indexOf(action) !== -1;
+  var isMutation = MUTATION_ACTIONS.indexOf(action) !== -1;
+  if (!isRead && !isMutation) return "bad_request";
+  if (!access || !access.allowed) return "forbidden";
+  if (isMutation && !access.isDirector) return "forbidden";
+  return null;
+}
+
+function validatePatch(action, payload, lineNames) {
+  if (READ_ACTIONS.indexOf(action) === -1 && MUTATION_ACTIONS.indexOf(action) === -1) return "Unknown action: " + action;
+  if (action === "getState") return null;
+  if (!payload || typeof payload !== "object" || Array.isArray(payload)) return "Payload must be an object";
+  var p = payload;
+  function has(k) { return Object.prototype.hasOwnProperty.call(p, k); }
+  function checkId() {
+    return typeof p.id === "string" && p.id.trim() ? null : "Missing or invalid id";
+  }
+  function checkLine(allowNull) {
+    var v = p.budgetLine;
+    if (v === null) return allowNull ? null : "Budget line is required";
+    if (typeof v !== "string") return "Invalid budget line";
+    var k = normalizeName(v);
+    var ok = (lineNames || []).some(function (n) { return normalizeName(n) === k; });
+    return ok ? null : "Unknown budget line: " + v;
+  }
+  function checkDate() {
+    return typeof p.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(p.date) ? null : "Date must be YYYY-MM-DD";
+  }
+  function checkDescription() {
+    return typeof p.description === "string" && p.description.trim() ? null : "Description must be non-empty";
+  }
+  function checkAmount() {
+    return typeof p.amount === "number" && isFinite(p.amount) && p.amount > 0 ? null : "Amount must be a number greater than 0";
+  }
+  function first(checks) {
+    for (var i = 0; i < checks.length; i++) {
+      var err = checks[i]();
+      if (err) return err;
+    }
+    return null;
+  }
+  if (action === "updateRequest") {
+    var checks = [checkId];
+    if (has("budgetLine")) checks.push(function () { return checkLine(true); });
+    if (has("stage")) checks.push(function () {
+      return Number.isInteger(p.stage) && p.stage >= 1 && p.stage <= 5 ? null : "Stage must be an integer from 1 to 5";
+    });
+    if (has("amountOverride")) checks.push(function () {
+      var v = p.amountOverride;
+      return v === null || (typeof v === "number" && isFinite(v) && v >= 0) ? null : "Amount override must be a non-negative number or null";
+    });
+    if (has("cancelled")) checks.push(function () {
+      return typeof p.cancelled === "boolean" ? null : "Cancelled must be true or false";
+    });
+    return first(checks);
+  }
+  if (action === "addOneOff") {
+    return first([checkDate, checkDescription, checkAmount, function () { return checkLine(true); }]);
+  }
+  if (action === "updateOneOff") {
+    var c = [checkId];
+    if (has("date")) c.push(checkDate);
+    if (has("description")) c.push(checkDescription);
+    if (has("amount")) c.push(checkAmount);
+    if (has("budgetLine")) c.push(function () { return checkLine(true); });
+    return first(c);
+  }
+  return checkId(); // deleteOneOff
+}
+
+if (typeof module !== "undefined") module.exports = { parsePrice, requestAmount, stageFromChecks, checksForStage, normalizeName, computeBudgets, mapColumns, requiredMissing, rowsToRequests, toPublicRequest, checkAccess, authorize, validatePatch };

@@ -131,3 +131,21 @@ test('checkAccess', () => {
   assert.deepEqual(L.checkAccess('stranger@berkeley.edu', allow, 'dir@gmail.com'), {allowed:false,isDirector:false});
   assert.deepEqual(L.checkAccess('DIR@gmail.com', [], 'dir@gmail.com'), {allowed:true,isDirector:true});
 });
+test('authorize rejects viewer mutation', () => {
+  const viewer = {allowed:true, isDirector:false};
+  assert.equal(L.authorize('getState', viewer), null);
+  assert.equal(L.authorize('updateRequest', viewer), 'forbidden');
+  assert.equal(L.authorize('getState', {allowed:false,isDirector:false}), 'forbidden');
+  assert.equal(L.authorize('updateRequest', {allowed:true,isDirector:true}), null);
+  assert.equal(L.authorize('dropTables', {allowed:true,isDirector:true}), 'bad_request');
+});
+test('validatePatch', () => {
+  const lines = ['Retreat','Welcome Dinner'];
+  assert.equal(L.validatePatch('updateRequest', {id:'a1', budgetLine:'Retreat'}, lines), null);
+  assert.equal(L.validatePatch('updateRequest', {id:'a1', budgetLine:null}, lines), null); // unassign
+  assert.match(L.validatePatch('updateRequest', {id:'a1', budgetLine:'Nope'}, lines), /budget line/i);
+  assert.match(L.validatePatch('updateRequest', {id:'a1', stage:0}, lines), /stage/i);
+  assert.match(L.validatePatch('updateRequest', {budgetLine:'Retreat'}, lines), /id/i);
+  assert.match(L.validatePatch('addOneOff', {description:'Cash', amount:-5, budgetLine:'Retreat', date:'2026-10-01'}, lines), /amount/i);
+  assert.equal(L.validatePatch('addOneOff', {description:'Cash reimbursement', amount:40, budgetLine:'Retreat', date:'2026-10-01'}, lines), null);
+});
