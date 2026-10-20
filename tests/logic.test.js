@@ -122,7 +122,8 @@ test('toPublicRequest never leaks private fields', () => {
   assert.equal(pub.amount, 209.27);
   assert.equal(pub.stage, 3);
   assert.equal(pub.orphaned, false);
-  assert.deepEqual(Object.keys(pub).sort(), ['amount','budgetLine','cancelled','date','description','id','items','name','needsAmount','orphaned','paymentMethod','stage','type']);
+  assert.equal(pub.amountOverridden, false);
+  assert.deepEqual(Object.keys(pub).sort(), ['amount','amountOverridden','budgetLine','cancelled','date','description','id','items','name','needsAmount','orphaned','paymentMethod','stage','type']);
 });
 test('checkAccess', () => {
   const allow = ['Exec@Berkeley.edu', 'friend@gmail.com'];
@@ -148,4 +149,15 @@ test('validatePatch', () => {
   assert.match(L.validatePatch('updateRequest', {budgetLine:'Retreat'}, lines), /id/i);
   assert.match(L.validatePatch('addOneOff', {description:'Cash', amount:-5, budgetLine:'Retreat', date:'2026-10-01'}, lines), /amount/i);
   assert.equal(L.validatePatch('addOneOff', {description:'Cash reimbursement', amount:40, budgetLine:'Retreat', date:'2026-10-01'}, lines), null);
+});
+test('toPublicRequest flags overridden amounts', () => {
+  const raw = L.rowsToRequests(ROWS, L.mapColumns(HEADERS), 2)[0];
+  raw.amountOverride = 50;
+  assert.equal(L.toPublicRequest(raw, L.requestAmount(raw), false).amountOverridden, true);
+});
+test('canonicalLineName', () => {
+  const names = ['Welcome Dinner', 'Retreat'];
+  assert.equal(L.canonicalLineName('  welcome   dinner ', names), 'Welcome Dinner');
+  assert.equal(L.canonicalLineName('Old Line', names), 'Old Line');
+  assert.equal(L.canonicalLineName(null, names), null);
 });

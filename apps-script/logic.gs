@@ -48,6 +48,17 @@ function normalizeName(s) {
   return String(s === null || s === undefined ? "" : s).toLowerCase().replace(/\s+/g, " ").trim();
 }
 
+// Returns the sheet's spelling of a matching budget line; null stays null,
+// unmatched values are returned as-is.
+function canonicalLineName(name, lineNames) {
+  if (name === null || name === undefined) return null;
+  var k = normalizeName(name);
+  for (var i = 0; i < lineNames.length; i++) {
+    if (normalizeName(lineNames[i]) === k) return lineNames[i];
+  }
+  return name;
+}
+
 function computeBudgets(lines, requests, oneOffs) {
   var spentByKey = {};
   var known = {};
@@ -202,6 +213,7 @@ function toPublicRequest(raw, budget, orphaned) {
     budgetLine: raw.budgetLine,
     amount: budget.amount,
     needsAmount: budget.needsAmount,
+    amountOverridden: typeof raw.amountOverride === "number",
     cancelled: raw.cancelled,
     orphaned: !!orphaned
   };
@@ -289,4 +301,4 @@ function validatePatch(action, payload, lineNames) {
   return checkId(); // deleteOneOff
 }
 
-if (typeof module !== "undefined") module.exports = { parsePrice, requestAmount, stageFromChecks, checksForStage, normalizeName, computeBudgets, mapColumns, requiredMissing, rowsToRequests, toPublicRequest, checkAccess, authorize, validatePatch };
+if (typeof module !== "undefined") module.exports = { parsePrice, requestAmount, stageFromChecks, checksForStage, normalizeName, canonicalLineName, computeBudgets, mapColumns, requiredMissing, rowsToRequests, toPublicRequest, checkAccess, authorize, validatePatch };

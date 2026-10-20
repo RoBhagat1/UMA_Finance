@@ -83,14 +83,7 @@ function applyMutation_(action, payload) {
   if (err) throw badRequest_(err);
 
   // Store the sheet's exact spelling of a matched budget line.
-  function canonicalLine(name) {
-    if (name === null || name === undefined) return null;
-    var k = normalizeName(name);
-    for (var i = 0; i < lineNames.length; i++) {
-      if (normalizeName(lineNames[i]) === k) return lineNames[i];
-    }
-    return name;
-  }
+  function canonicalLine(name) { return canonicalLineName(name, lineNames); }
   function has(k) { return Object.prototype.hasOwnProperty.call(payload, k); }
 
   if (action === "updateRequest") {
@@ -131,6 +124,7 @@ function buildState(email, isDirector) {
   var oneOffs = readOneOffs();
 
   var known = {};
+  var sheetNames = sheetLines.map(function (l) { return l.name; });
   sheetLines.forEach(function (l) { known[normalizeName(l.name)] = true; });
   var amounts = raw.map(function (r) { return requestAmount(r); });
   var budgets = computeBudgets(
@@ -147,10 +141,12 @@ function buildState(email, isDirector) {
     unassignedTotal: budgets.unassignedTotal,
     requests: raw.map(function (r, i) {
       var k = normalizeName(r.budgetLine);
-      return toPublicRequest(r, amounts[i], !!k && !known[k]);
+      var pub = toPublicRequest(r, amounts[i], !!k && !known[k]);
+      pub.budgetLine = canonicalLineName(pub.budgetLine, sheetNames);
+      return pub;
     }),
     oneOffs: oneOffs.map(function (o) {
-      return { id: o.id, date: o.date, description: o.description, amount: o.amount, budgetLine: o.budgetLine };
+      return { id: o.id, date: o.date, description: o.description, amount: o.amount, budgetLine: canonicalLineName(o.budgetLine, sheetNames) };
     })
   };
   return state;
