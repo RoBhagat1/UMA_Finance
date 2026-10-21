@@ -12,3 +12,8 @@ test('formatCurrency', () => {
 test('stageLabel', () => {
   assert.equal(F.stageLabel(3), 'Stage 3');
 });
+
+test('formatOneOffAmount shows refunds as a green plus', () => {
+  assert.equal(F.formatOneOffAmount(40), '$40.00');
+  assert.equal(F.formatOneOffAmount(-150), '+$150.00 refund');
+});

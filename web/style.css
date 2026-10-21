@@ -47,6 +47,7 @@ td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-sp
 .card-top { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .card-name { font-weight: 600; overflow-wrap: anywhere; }
 .amount { font-weight: 600; font-variant-numeric: tabular-nums; }
+.amount.refund { color: #1e8e3e; }
 .badge { display: inline-block; padding: 1px 8px; border-radius: 10px; background: var(--warn-bg); color: var(--warn); font-size: .8rem; font-weight: 600; }
 .meta { color: var(--muted); font-size: .85rem; overflow-wrap: anywhere; }
 .desc { margin: 6px 0; overflow-wrap: anywhere; }

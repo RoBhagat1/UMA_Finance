@@ -265,7 +265,8 @@ function validatePatch(action, payload, lineNames) {
     return typeof p.description === "string" && p.description.trim() ? null : "Description must be non-empty";
   }
   function checkAmount() {
-    return typeof p.amount === "number" && isFinite(p.amount) && p.amount > 0 ? null : "Amount must be a number greater than 0";
+    // Positive = expense, negative = refund back into the budget line.
+    return typeof p.amount === "number" && isFinite(p.amount) && p.amount !== 0 ? null : "Amount must be a non-zero number";
   }
   function first(checks) {
     for (var i = 0; i < checks.length; i++) {

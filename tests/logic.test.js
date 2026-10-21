@@ -153,7 +153,7 @@ test('validatePatch', () => {
   assert.match(L.validatePatch('updateRequest', {id:'a1', budgetLine:'Nope'}, lines), /budget line/i);
   assert.match(L.validatePatch('updateRequest', {id:'a1', stage:0}, lines), /stage/i);
   assert.match(L.validatePatch('updateRequest', {budgetLine:'Retreat'}, lines), /id/i);
-  assert.match(L.validatePatch('addOneOff', {description:'Cash', amount:-5, budgetLine:'Retreat', date:'2026-10-01'}, lines), /amount/i);
+  assert.match(L.validatePatch('addOneOff', {description:'Cash', amount:0, budgetLine:'Retreat', date:'2026-10-01'}, lines), /amount/i);
   assert.equal(L.validatePatch('addOneOff', {description:'Cash reimbursement', amount:40, budgetLine:'Retreat', date:'2026-10-01'}, lines), null);
 });
 test('toPublicRequest flags overridden amounts', () => {
@@ -166,4 +166,16 @@ test('canonicalLineName', () => {
   assert.equal(L.canonicalLineName('  welcome   dinner ', names), 'Welcome Dinner');
   assert.equal(L.canonicalLineName('Old Line', names), 'Old Line');
   assert.equal(L.canonicalLineName(null, names), null);
+});
+
+test('one-off refunds are negative amounts that lower Spent', () => {
+  const lines = ['Banquet'];
+  assert.equal(L.validatePatch('addOneOff', {description:'Venue deposit returned', amount:-150, budgetLine:'Banquet', date:'2026-10-20'}, lines), null);
+  assert.equal(L.validatePatch('updateOneOff', {id:'O1', amount:-150}, lines), null);
+  assert.match(L.validatePatch('updateOneOff', {id:'O1', amount:0}, lines), /amount/i);
+  const out = L.computeBudgets([{name:'Banquet', budget:1500}],
+    [{budgetLine:'Banquet', amount:600, cancelled:false}],
+    [{budgetLine:'Banquet', amount:-150}]);
+  assert.equal(out.lines[0].spent, 450);
+  assert.equal(out.lines[0].remaining, 1050);
 });

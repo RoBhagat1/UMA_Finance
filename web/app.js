@@ -264,26 +264,33 @@
   }
 
   function oneOffFields(o) {
+    var kind = el('select', { title: 'Expense or refund' });
+    kind.appendChild(el('option', { value: 'expense', text: 'Expense' }));
+    kind.appendChild(el('option', { value: 'refund', text: 'Refund' }));
+    if (o && o.amount < 0) kind.value = 'refund';
     return {
+      kind: kind,
       date: el('input', { type: 'date', value: o ? o.date : '', title: 'Date' }),
       desc: el('input', { type: 'text', value: o ? o.description : '', placeholder: 'Description', title: 'Description' }),
-      amount: el('input', { type: 'number', step: '0.01', min: '0.01', value: o ? String(o.amount) : '', placeholder: 'Amount', title: 'Amount' }),
+      amount: el('input', { type: 'number', step: '0.01', min: '0.01', value: o ? String(Math.abs(o.amount)) : '', placeholder: 'Amount', title: 'Amount' }),
       line: lineSelect(o ? o.budgetLine : '')
     };
   }
 
+  // A refund is stored as a negative amount, which lowers the line's Spent.
   function readFields(f, err) {
     var amount = parseFloat(f.amount.value);
     if (!f.date.value || !f.desc.value.trim() || !(amount > 0) || !f.line.value) {
       err.textContent = 'Fill in date, description, a positive amount, and a budget line.';
       return null;
     }
+    if (f.kind.value === 'refund') amount = -amount;
     return { date: f.date.value, description: f.desc.value.trim(), amount: amount, budgetLine: f.line.value };
   }
 
   function renderOneOffs() {
-    root.appendChild(el('h2', { text: 'One-off expenses' }));
-    if (!state.oneOffs.length) root.appendChild(el('p', { class: 'empty', text: 'No one-off expenses.' }));
+    root.appendChild(el('h2', { text: 'One-off expenses & refunds' }));
+    if (!state.oneOffs.length) root.appendChild(el('p', { class: 'empty', text: 'No one-off expenses or refunds.' }));
     state.oneOffs.forEach(function (o) { root.appendChild(oneOffRow(o)); });
 
     var f = oneOffFields(null);
@@ -291,9 +298,9 @@
     var add = el('button', { class: 'primary', text: 'Add' });
     add.addEventListener('click', function () {
       var p = readFields(f, err);
-      if (p) mutate('addOneOff', p, [f.date, f.desc, f.amount, f.line, add], err);
+      if (p) mutate('addOneOff', p, [f.kind, f.date, f.desc, f.amount, f.line, add], err);
     });
-    root.appendChild(el('div', { class: 'form' }, [f.date, f.desc, f.amount, f.line, add, err]));
+    root.appendChild(el('div', { class: 'form' }, [f.kind, f.date, f.desc, f.amount, f.line, add, err]));
   }
 
   function oneOffRow(o) {
@@ -305,11 +312,11 @@
       var del = el('button', { class: 'danger', text: 'Delete' });
       edit.addEventListener('click', editMode);
       del.addEventListener('click', function () {
-        if (window.confirm('Delete this one-off expense?')) mutate('deleteOneOff', { id: o.id }, [edit, del], err);
+        if (window.confirm(o.amount < 0 ? 'Delete this refund?' : 'Delete this one-off expense?')) mutate('deleteOneOff', { id: o.id }, [edit, del], err);
       });
       card.appendChild(el('div', { class: 'card-top' }, [
         el('div', {}, [el('div', { class: 'card-name', text: o.description }), el('div', { class: 'meta', text: o.date + ' · ' + (o.budgetLine || 'Unassigned') })]),
-        el('span', { class: 'amount', text: F.formatCurrency(o.amount) })
+        el('span', { class: o.amount < 0 ? 'amount refund' : 'amount', text: F.formatOneOffAmount(o.amount) })
       ]));
       card.appendChild(el('div', { class: 'controls' }, [edit, del, err]));
     }
@@ -321,9 +328,9 @@
       var cancel = el('button', { text: 'Cancel', on: { click: view } });
       save.addEventListener('click', function () {
         var p = readFields(f, err);
-        if (p) { p.id = o.id; mutate('updateOneOff', p, [f.date, f.desc, f.amount, f.line, save, cancel], err); }
+        if (p) { p.id = o.id; mutate('updateOneOff', p, [f.kind, f.date, f.desc, f.amount, f.line, save, cancel], err); }
       });
-      card.appendChild(el('div', { class: 'controls' }, [f.date, f.desc, f.amount, f.line, save, cancel, err]));
+      card.appendChild(el('div', { class: 'controls' }, [f.kind, f.date, f.desc, f.amount, f.line, save, cancel, err]));
     }
     view();
     return card;
