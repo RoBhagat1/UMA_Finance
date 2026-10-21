@@ -119,7 +119,7 @@ function readRequests() {
         if (current) {
           r.id = current;
         } else {
-          r.id = Utilities.getUuid().slice(0, 8);
+          r.id = "R" + Utilities.getUuid().slice(0, 8);
           cell.setValue(r.id);
         }
       });
@@ -225,7 +225,7 @@ function findOneOffRow_(sheet, id) {
 }
 
 function appendOneOff(o) {
-  var id = Utilities.getUuid().slice(0, 8);
+  var id = "O" + Utilities.getUuid().slice(0, 8);
   getSheet_(CONFIG.ONEOFF_SHEET_NAME).appendRow([id, o.date, o.description, o.amount, o.budgetLine || ""]);
   return id;
 }
