@@ -81,13 +81,20 @@ input[type=number] { width: 8.5em; }
 
 /* ---- Budgets panel ---- */
 .panel { background: var(--card); border-radius: 18px; padding: 6px 20px; box-shadow: 0 1px 2px rgba(42,34,56,.04), 0 8px 24px rgba(94,95,181,.06); }
-.line { display: grid; grid-template-columns: 1fr auto; gap: 4px 16px; padding: 14px 0; border-bottom: 1px solid var(--line); }
+.line { border-bottom: 1px solid var(--line); }
 .line:last-child { border-bottom: 0; }
+.line > summary { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 12px; padding: 14px 0; }
+.line > summary .bar, .line > summary .line-sub { grid-column: 2 / -1; }
+.line > summary:hover .line-name { color: var(--mauve); }
+.line-requests { padding: 0 0 14px 21px; }
+.line-requests .card { background: var(--mist); box-shadow: none; margin-bottom: 8px; }
+.line-requests .controls { background: #f1edf5; }
+.line-empty { margin: 0 0 14px 21px; font-size: .9rem; }
 .line-name { font-weight: 500; overflow-wrap: anywhere; }
 .line-left { text-align: right; font-weight: 500; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .line-left.neg { color: var(--over); }
-.line-sub { grid-column: 1 / -1; color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
-.bar { grid-column: 1 / -1; height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
+.line-sub { color: var(--muted); font-size: .85rem; font-variant-numeric: tabular-nums; }
+.bar { height: 8px; border-radius: 99px; background: var(--line); overflow: hidden; }
 .bar i { display: block; height: 100%; border-radius: 99px; background: var(--uma-flat); }
 .bar i.over { background: var(--over); }
 .line.unassigned .line-name { color: var(--muted); font-weight: 400; }

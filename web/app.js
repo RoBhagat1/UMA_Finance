@@ -167,59 +167,52 @@
       ])
     ]));
     root.appendChild(el('h2', { text: 'Budgets' }));
-    root.appendChild(budgetPanel());
-    root.appendChild(el('h2', { text: 'Reimbursements' }));
-    renderRequests(isDir);
+    root.appendChild(budgetPanel(isDir));
+    renderCancelled(isDir);
     if (isDir) renderOneOffs();
   }
 
   // One row per budget line: name, what's left, a bar of how much is used.
-  function budgetPanel() {
+  function countLabel(n) { return n + (n === 1 ? ' request' : ' requests'); }
+
+  // One row per budget line: name, what's left, a bar of how much is used.
+  // Each row opens to show the requests assigned to that line.
+  function budgetPanel(isDir) {
+    var active = state.requests.filter(function (r) { return !r.cancelled; });
+    function requestsBody(list) {
+      if (!list.length) return [el('p', { class: 'empty line-empty', text: 'No requests in this budget yet.' })];
+      return [el('div', { class: 'line-requests' }, list.map(function (r) { return requestCard(r, isDir); }))];
+    }
     var rows = state.budgetLines.map(function (l) {
       var over = l.remaining < 0;
       var used = l.budget > 0 ? Math.min(100, Math.max(0, (l.spent / l.budget) * 100)) : (l.spent > 0 ? 100 : 0);
-      return el('div', { class: 'line' }, [
+      var list = active.filter(function (r) { return r.budgetLine === l.name && !r.orphaned; });
+      return collapsible('line', l.name, openGroups, [
+        el('span', { class: 'chev', 'aria-hidden': 'true' }),
         el('div', { class: 'line-name', text: l.name }),
-        el('div', { class: 'line-left' + (over ? ' neg' : '') , text: over ? F.formatCurrency(-l.remaining) + ' over' : F.formatCurrency(l.remaining) + ' left' }),
+        el('div', { class: 'line-left' + (over ? ' neg' : ''), text: over ? F.formatCurrency(-l.remaining) + ' over' : F.formatCurrency(l.remaining) + ' left' }),
         el('div', { class: 'bar', title: Math.round(used) + '% used' }, [el('i', { class: over ? 'over' : '', style: 'width:' + used + '%' })]),
-        el('div', { class: 'line-sub', text: F.formatCurrency(l.spent) + ' spent of ' + F.formatCurrency(l.budget) })
-      ]);
+        el('div', { class: 'line-sub', text: F.formatCurrency(l.spent) + ' spent of ' + F.formatCurrency(l.budget) + ' · ' + countLabel(list.length) })
+      ], requestsBody(list));
     });
-    rows.push(el('div', { class: 'line unassigned' }, [
+    var unassigned = active.filter(function (r) { return !r.budgetLine || r.orphaned; });
+    rows.push(collapsible('line unassigned', '__unassigned', openGroups, [
+      el('span', { class: 'chev', 'aria-hidden': 'true' }),
       el('div', { class: 'line-name', text: 'Not yet assigned to a budget' }),
-      el('div', { class: 'line-left', text: F.formatCurrency(state.unassignedTotal) })
-    ]));
+      el('div', { class: 'line-left', text: F.formatCurrency(state.unassignedTotal) }),
+      el('div', { class: 'line-sub', text: countLabel(unassigned.length) })
+    ], requestsBody(unassigned)));
     return el('div', { class: 'panel' }, rows);
   }
 
-  // ---- Requests ----
-  function renderRequests(isDir) {
-    var active = state.requests.filter(function (r) { return !r.cancelled; });
+  function renderCancelled(isDir) {
     var cancelled = state.requests.filter(function (r) { return r.cancelled; });
-    var groups = [];
-    function group(title, pred) {
-      var list = active.filter(pred);
-      if (list.length) groups.push({ title: title, list: list });
-    }
-    group('Unassigned', function (r) { return !r.budgetLine || r.orphaned; });
-    state.budgetLines.forEach(function (l) { group(l.name, function (r) { return r.budgetLine === l.name; }); });
-    if (!state.requests.length) root.appendChild(el('p', { class: 'empty', text: 'No reimbursement requests yet.' }));
-    groups.forEach(function (g) {
-      var total = g.list.reduce(function (sum, r) { return sum + (r.amount || 0); }, 0);
-      root.appendChild(collapsible('group', g.title, openGroups, [
-        el('span', { class: 'chev', 'aria-hidden': 'true' }),
-        el('span', { class: 'group-name', text: g.title === 'Unassigned' ? 'Not yet assigned' : g.title }),
-        el('span', { class: 'count', text: g.list.length + (g.list.length === 1 ? ' request' : ' requests') }),
-        el('span', { class: 'group-total', text: F.formatCurrency(Math.round(total * 100) / 100) })
-      ], g.list.map(function (r) { return requestCard(r, isDir); })));
-    });
-    if (cancelled.length) {
-      root.appendChild(collapsible('group', '__cancelled', openGroups, [
-        el('span', { class: 'chev', 'aria-hidden': 'true' }),
-        el('span', { class: 'group-name', text: 'Cancelled' }),
-        el('span', { class: 'count', text: cancelled.length + (cancelled.length === 1 ? ' request' : ' requests') })
-      ], cancelled.map(function (r) { return requestCard(r, isDir); })));
-    }
+    if (!cancelled.length) return;
+    root.appendChild(collapsible('group', '__cancelled', openGroups, [
+      el('span', { class: 'chev', 'aria-hidden': 'true' }),
+      el('span', { class: 'group-name', text: 'Cancelled requests' }),
+      el('span', { class: 'count', text: countLabel(cancelled.length) })
+    ], cancelled.map(function (r) { return requestCard(r, isDir); })));
   }
 
   function requestCard(r, isDir) {
