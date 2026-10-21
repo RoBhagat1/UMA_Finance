@@ -168,7 +168,7 @@ test('canonicalLineName', () => {
   assert.equal(L.canonicalLineName(null, names), null);
 });
 
-test('one-off refunds are negative amounts that lower Spent', () => {
+test('one-off refunds are negative amounts that raise Remaining only', () => {
   const lines = ['Banquet'];
   assert.equal(L.validatePatch('addOneOff', {description:'Venue deposit returned', amount:-150, budgetLine:'Banquet', date:'2026-10-20'}, lines), null);
   assert.equal(L.validatePatch('updateOneOff', {id:'O1', amount:-150}, lines), null);
@@ -176,6 +176,13 @@ test('one-off refunds are negative amounts that lower Spent', () => {
   const out = L.computeBudgets([{name:'Banquet', budget:1500}],
     [{budgetLine:'Banquet', amount:600, cancelled:false}],
     [{budgetLine:'Banquet', amount:-150}]);
-  assert.equal(out.lines[0].spent, 450);
+  assert.equal(out.lines[0].spent, 600);
   assert.equal(out.lines[0].remaining, 1050);
+  // A refund bigger than what was spent never makes Spent negative.
+  const big = L.computeBudgets([{name:'Misc', budget:600}],
+    [{budgetLine:'Misc', amount:298.07, cancelled:false}],
+    [{budgetLine:'Misc', amount:-10000}, {budgetLine:'Misc', amount:50}]);
+  assert.equal(big.lines[0].spent, 348.07);
+  assert.equal(big.lines[0].remaining, 10251.93);
+  assert.equal(big.unassignedTotal, 0);
 });

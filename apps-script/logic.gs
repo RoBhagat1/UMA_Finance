@@ -61,11 +61,13 @@ function canonicalLineName(name, lineNames) {
 
 function computeBudgets(lines, requests, oneOffs) {
   var spentByKey = {};
+  var refundsByKey = {};
   var known = {};
   lines.forEach(function (l) {
     var k = normalizeName(l.name);
     known[k] = true;
     spentByKey[k] = 0;
+    refundsByKey[k] = 0;
   });
   var unassigned = 0;
   var orphaned = new Set();
@@ -82,13 +84,21 @@ function computeBudgets(lines, requests, oneOffs) {
   requests.forEach(function (r) {
     if (!r.cancelled) add(r.budgetLine, r.amount);
   });
+  // Refunds (negative one-offs) add money back to Remaining without touching Spent.
   oneOffs.forEach(function (o) {
+    if (o.amount < 0) {
+      var k = normalizeName(o.budgetLine);
+      if (k && known[k]) refundsByKey[k] -= o.amount;
+      else if (k) orphaned.add(k);
+      return;
+    }
     add(o.budgetLine, o.amount);
   });
   return {
     lines: lines.map(function (l) {
-      var spent = roundCents(spentByKey[normalizeName(l.name)]);
-      return { name: l.name, budget: l.budget, spent: spent, remaining: roundCents(l.budget - spent) };
+      var k = normalizeName(l.name);
+      var spent = roundCents(spentByKey[k]);
+      return { name: l.name, budget: l.budget, spent: spent, remaining: roundCents(l.budget - spent + refundsByKey[k]) };
     }),
     unassignedTotal: roundCents(unassigned),
     orphanedLineNames: orphaned
