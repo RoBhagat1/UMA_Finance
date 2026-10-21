@@ -32,6 +32,14 @@ function getSheet_(name) {
   return sheet;
 }
 
+// The Finance Tracker lives in a separate spreadsheet file.
+function getFinanceSheet_() {
+  var ss = SpreadsheetApp.openById(CONFIG.FINANCE_SPREADSHEET_ID);
+  var sheet = ss.getSheetByName(CONFIG.FINANCE_SHEET_NAME);
+  if (!sheet) throw new Error('Missing tab "' + CONFIG.FINANCE_SHEET_NAME + '" in the Finance Tracker spreadsheet.');
+  return sheet;
+}
+
 function formatDate_(v) {
   if (Object.prototype.toString.call(v) === "[object Date]") {
     return isNaN(v.getTime()) ? "" : Utilities.formatDate(v, Session.getScriptTimeZone(), "yyyy-MM-dd");
@@ -154,7 +162,7 @@ function findExpensesTable_(values) {
 }
 
 function readBudgetLines() {
-  var values = getSheet_(CONFIG.FINANCE_SHEET_NAME).getDataRange().getValues();
+  var values = getFinanceSheet_().getDataRange().getValues();
   var t = findExpensesTable_(values);
   var lines = [];
   for (var r = t.headerIndex + 1; r < values.length; r++) {
@@ -173,7 +181,7 @@ function readBudgetLines() {
 
 // lines: [{ row, spent, remaining }]. Writes only cells whose value differs.
 function writeBudgetTotals(lines) {
-  var sheet = getSheet_(CONFIG.FINANCE_SHEET_NAME);
+  var sheet = getFinanceSheet_();
   var values = sheet.getDataRange().getValues();
   var t = findExpensesTable_(values);
   lines.forEach(function (l) {

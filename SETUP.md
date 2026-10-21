@@ -23,7 +23,7 @@ This lets the site offer "Sign in with Google".
 
 **Before you continue:** copy the old hand-typed **Spent** column from the Finance Tracker tab somewhere safe (for example, paste it into a new tab). Once the site is deployed (step 3), the first time any allowed user loads it, it overwrites those Spent cells.
 
-1. Open the finance Google Sheet. Click **Extensions → Apps Script**.
+1. Open the **Reimbursements Tracker** Google Sheet (the one the form writes to, not the Finance Tracker). Click **Extensions → Apps Script**.
 2. Delete any existing code. Create these files (the **+** next to "Files" → **Script**), named exactly, and paste in the matching file from the `apps-script` folder of this repo:
    - `logic.gs`
    - `config.gs`
@@ -33,8 +33,10 @@ This lets the site offer "Sign in with Google".
 4. In `config.gs`, replace:
    - `DIRECTOR_EMAIL` with the Director of Finance's Google email
    - `GOOGLE_CLIENT_ID` with the Client ID from step 1
+   - `FINANCE_SPREADSHEET_ID` with the ID of the **Finance Tracker** file: open it and copy the long part of its URL between `/d/` and `/edit`
+   - `REIMB_SHEET_NAME` / `FINANCE_SHEET_NAME` if your tab names are not "CalLink" and "Fall 2026"
 5. Click **Save**. Choose `setupSheets` in the function dropdown and click **Run**. Approve the permission prompts (click Advanced → Go to project if Google warns you).
-6. Open **Execution log**. It should end with `requiredMissing: []`. If it lists names instead, a column header in the "Reimbursements Tracker" tab does not match what the site expects. Rename those headers in the sheet, then run `setupSheets` again.
+6. Open **Execution log**. It should end with `requiredMissing: []`. If it lists names instead, a column header in the Reimbursements Tracker's tab does not match what the site expects. Rename those headers in the sheet, then run `setupSheets` again.
 7. `setupSheets` also creates two tabs: **One-off Expenses** and **Site Access**.
 8. Check the data: choose `debugState` and click **Run**. In the log, confirm:
    - the number of requests looks right

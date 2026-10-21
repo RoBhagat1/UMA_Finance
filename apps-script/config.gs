@@ -1,10 +1,13 @@
-// Fill in DIRECTOR_EMAIL and GOOGLE_CLIENT_ID before deploying.
+// Fill in DIRECTOR_EMAIL and FINANCE_SPREADSHEET_ID in the Apps Script editor (keep real values out of this public repo).
+// This script lives in the Reimbursements Tracker spreadsheet; the Finance Tracker is a separate file.
 var CONFIG = {
-  REIMB_SHEET_NAME: "Reimbursements Tracker",
-  FINANCE_SHEET_NAME: "Finance Tracker",
+  REIMB_SHEET_NAME: "CalLink",
+  // The long ID in the Finance Tracker's URL: docs.google.com/spreadsheets/d/<THIS PART>/edit
+  FINANCE_SPREADSHEET_ID: "PASTE_FINANCE_TRACKER_SPREADSHEET_ID",
+  FINANCE_SHEET_NAME: "Fall 2026",
   ONEOFF_SHEET_NAME: "One-off Expenses",
   ACCESS_SHEET_NAME: "Site Access",
   REIMB_HEADER_ROW: 1,
-  DIRECTOR_EMAIL: "REPLACE_ME@gmail.com",
+  DIRECTOR_EMAIL: "PASTE_DIRECTOR_EMAIL",
   GOOGLE_CLIENT_ID: "450711685592-dnaija6i662rvcgjj7j8goavnstu0dc8.apps.googleusercontent.com"
 };
