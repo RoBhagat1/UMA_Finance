@@ -174,34 +174,43 @@
 
   // One row per budget line: name, what's left, a bar of how much is used.
   function countLabel(n) { return n + (n === 1 ? ' request' : ' requests'); }
+  function oneOffLabel(n) { return n + (n === 1 ? ' one-off' : ' one-offs'); }
 
   // One row per budget line: name, what's left, a bar of how much is used.
   // Each row opens to show the requests assigned to that line.
   function budgetPanel(isDir) {
     var active = state.requests.filter(function (r) { return !r.cancelled; });
-    function requestsBody(list) {
-      if (!list.length) return [el('p', { class: 'empty line-empty', text: 'No requests in this budget yet.' })];
-      return [el('div', { class: 'line-requests' }, list.map(function (r) { return requestCard(r, isDir); }))];
+    var lineKeys = state.budgetLines.map(function (l) { return l.name; });
+    function itemsBody(list, oneOffs) {
+      if (!list.length && !oneOffs.length) return [el('p', { class: 'empty line-empty', text: 'Nothing in this budget yet.' })];
+      return [el('div', { class: 'line-requests' },
+        list.map(function (r) { return requestCard(r, isDir); })
+          .concat(oneOffs.map(function (o) { return oneOffRow(o, isDir); })))];
+    }
+    function sublabel(list, oneOffs) {
+      return countLabel(list.length) + (oneOffs.length ? ' · ' + oneOffLabel(oneOffs.length) : '');
     }
     var rows = state.budgetLines.map(function (l) {
       var over = l.remaining < 0;
       var used = l.budget > 0 ? Math.min(100, Math.max(0, (l.spent / l.budget) * 100)) : (l.spent > 0 ? 100 : 0);
       var list = active.filter(function (r) { return r.budgetLine === l.name && !r.orphaned; });
+      var oneOffs = state.oneOffs.filter(function (o) { return o.budgetLine === l.name; });
       return collapsible('line', l.name, openGroups, [
         el('span', { class: 'chev', 'aria-hidden': 'true' }),
         el('div', { class: 'line-name', text: l.name }),
         el('div', { class: 'line-left' + (over ? ' neg' : ''), text: over ? F.formatCurrency(-l.remaining) + ' over' : F.formatCurrency(l.remaining) + ' left' }),
         el('div', { class: 'bar', title: Math.round(used) + '% used' }, [el('i', { class: over ? 'over' : '', style: 'width:' + used + '%' })]),
-        el('div', { class: 'line-sub', text: F.formatCurrency(l.spent) + ' spent of ' + F.formatCurrency(l.budget) + ' · ' + countLabel(list.length) })
-      ], requestsBody(list));
+        el('div', { class: 'line-sub', text: F.formatCurrency(l.spent) + ' spent of ' + F.formatCurrency(l.budget) + ' · ' + sublabel(list, oneOffs) })
+      ], itemsBody(list, oneOffs));
     });
     var unassigned = active.filter(function (r) { return !r.budgetLine || r.orphaned; });
+    var looseOneOffs = state.oneOffs.filter(function (o) { return !o.budgetLine || lineKeys.indexOf(o.budgetLine) < 0; });
     rows.push(collapsible('line unassigned', '__unassigned', openGroups, [
       el('span', { class: 'chev', 'aria-hidden': 'true' }),
       el('div', { class: 'line-name', text: 'Not yet assigned to a budget' }),
       el('div', { class: 'line-left', text: F.formatCurrency(state.unassignedTotal) }),
-      el('div', { class: 'line-sub', text: countLabel(unassigned.length) })
-    ], requestsBody(unassigned)));
+      el('div', { class: 'line-sub', text: sublabel(unassigned, looseOneOffs) })
+    ], itemsBody(unassigned, looseOneOffs)));
     return el('div', { class: 'panel' }, rows);
   }
 
@@ -332,9 +341,7 @@
   }
 
   function renderOneOffs() {
-    root.appendChild(el('h2', { text: 'One-off expenses & refunds' }));
-    if (!state.oneOffs.length) root.appendChild(el('p', { class: 'empty', text: 'No one-off expenses or refunds.' }));
-    state.oneOffs.forEach(function (o) { root.appendChild(oneOffRow(o)); });
+    root.appendChild(el('h2', { text: 'Add a one-off expense or refund' }));
 
     var f = oneOffFields(null);
     var err = el('div', { class: 'err' });
@@ -346,7 +353,8 @@
     root.appendChild(el('div', { class: 'form' }, [f.kind, f.date, f.desc, f.amount, f.line, add, err]));
   }
 
-  function oneOffRow(o) {
+  // One-offs show inside their budget line; only editors get Edit/Delete.
+  function oneOffRow(o, isDir) {
     var card = el('div', { class: 'card' });
     function view() {
       clear(card);
@@ -358,10 +366,10 @@
         if (window.confirm(o.amount < 0 ? 'Delete this refund?' : 'Delete this one-off expense?')) mutate('deleteOneOff', { id: o.id }, [edit, del], err);
       });
       card.appendChild(el('div', { class: 'card-top' }, [
-        el('div', {}, [el('div', { class: 'card-name', text: o.description }), el('div', { class: 'meta' }, [el('span', { text: o.date }), el('span', { class: 'tag', text: o.budgetLine || 'Unassigned' })])]),
+        el('div', {}, [el('div', { class: 'card-name', text: o.description }), el('div', { class: 'meta' }, [el('span', { text: o.date }), el('span', { class: 'tag', text: o.amount < 0 ? 'Refund' : 'One-off' })])]),
         el('span', { class: o.amount < 0 ? 'amount refund' : 'amount', text: F.formatOneOffAmount(o.amount) })
       ]));
-      card.appendChild(el('div', { class: 'controls' }, [edit, del, err]));
+      if (isDir) card.appendChild(el('div', { class: 'controls' }, [edit, del, err]));
     }
     function editMode() {
       clear(card);
