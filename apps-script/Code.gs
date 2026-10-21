@@ -13,7 +13,7 @@ function doPost(e) {
     var email = verifyIdToken_(body.idToken);
     if (!email) return fail_("unauthenticated", "Sign-in expired or invalid. Please sign in again.");
 
-    var access = checkAccess(email, readAllowlist(), CONFIG.DIRECTOR_EMAIL);
+    var access = checkAccess(email, readAllowlist(), CONFIG.DIRECTOR_EMAILS);
     var authErr = authorize(body.action, access);
     if (authErr === "bad_request") return fail_("bad_request", "Unknown action: " + body.action);
     if (authErr) return fail_("forbidden", "You don't have access to do that.");
@@ -155,5 +155,5 @@ function buildState(email, isDirector) {
 // Scratch check for the Apps Script editor: logs State as the director.
 // Read-only except for backfilling missing Request IDs; does not write budget totals.
 function debugState() {
-  Logger.log(JSON.stringify(buildState(CONFIG.DIRECTOR_EMAIL, true)));
+  Logger.log(JSON.stringify(buildState(CONFIG.DIRECTOR_EMAILS[0], true)));
 }

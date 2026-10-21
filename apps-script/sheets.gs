@@ -74,7 +74,7 @@ function setupSheets() {
   if (!ss.getSheetByName(CONFIG.ACCESS_SHEET_NAME)) {
     var a = ss.insertSheet(CONFIG.ACCESS_SHEET_NAME);
     a.appendRow(["Email"]);
-    a.appendRow([CONFIG.DIRECTOR_EMAIL]);
+    CONFIG.DIRECTOR_EMAILS.forEach(function (d) { a.appendRow([d]); });
     a.getRange(1, 1).setFontWeight("bold");
     a.setFrozenRows(1);
     Logger.log("Created tab: " + CONFIG.ACCESS_SHEET_NAME);

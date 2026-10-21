@@ -219,10 +219,12 @@ function toPublicRequest(raw, budget, orphaned) {
   };
 }
 
-function checkAccess(email, allowlist, directorEmail) {
+// directorEmails: one email or a list; directors can edit and may use any domain.
+function checkAccess(email, allowlist, directorEmails) {
   var e = normalizeName(email);
   if (!e) return { allowed: false, isDirector: false };
-  if (e === normalizeName(directorEmail)) return { allowed: true, isDirector: true };
+  var directors = [].concat(directorEmails || []);
+  if (directors.some(function (d) { return normalizeName(d) === e; })) return { allowed: true, isDirector: true };
   var listed = allowlist.some(function (a) { return normalizeName(a) === e; });
   return { allowed: listed && /@berkeley\.edu$/.test(e), isDirector: false };
 }

@@ -31,7 +31,7 @@ This lets the site offer "Sign in with Google".
    - `Code.gs`
 3. Click the gear icon (**Project Settings**) and tick **Show "appsscript.json" manifest file in editor**. Go back to the editor, open `appsscript.json`, and paste in the repo's `apps-script/appsscript.json`.
 4. In `config.gs`, replace:
-   - `DIRECTOR_EMAIL` with the Director of Finance's Google email
+   - `DIRECTOR_EMAILS` with the Google email(s) of everyone who can edit, e.g. `["director@berkeley.edu", "treasurer@berkeley.edu"]`
    - `GOOGLE_CLIENT_ID` with the Client ID from step 1
    - `FINANCE_SPREADSHEET_ID` with the ID of the **Finance Tracker** file: open it and copy the long part of its URL between `/d/` and `/edit`
    - `REIMB_SHEET_NAME` / `FINANCE_SHEET_NAME` if your tab names are not "CalLink" and "Fall 2026"

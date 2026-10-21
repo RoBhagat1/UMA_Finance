@@ -132,6 +132,12 @@ test('checkAccess', () => {
   assert.deepEqual(L.checkAccess('stranger@berkeley.edu', allow, 'dir@gmail.com'), {allowed:false,isDirector:false});
   assert.deepEqual(L.checkAccess('DIR@gmail.com', [], 'dir@gmail.com'), {allowed:true,isDirector:true});
 });
+test('checkAccess with several directors', () => {
+  const dirs = ['dir@gmail.com', 'Second@Berkeley.edu'];
+  assert.deepEqual(L.checkAccess('second@berkeley.edu', [], dirs), {allowed:true,isDirector:true});
+  assert.deepEqual(L.checkAccess('dir@gmail.com', [], dirs), {allowed:true,isDirector:true});
+  assert.deepEqual(L.checkAccess('exec@berkeley.edu', ['exec@berkeley.edu'], dirs), {allowed:true,isDirector:false});
+});
 test('authorize rejects viewer mutation', () => {
   const viewer = {allowed:true, isDirector:false};
   assert.equal(L.authorize('getState', viewer), null);
