@@ -21,6 +21,30 @@
   }
   function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
 
+  // The UMA asterisk, drawn faintly behind the gradient.
+  function asterisk() {
+    var NS = 'http://www.w3.org/2000/svg';
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '-50 -50 100 100');
+    svg.setAttribute('class', 'asterisk');
+    svg.setAttribute('aria-hidden', 'true');
+    for (var a = 0; a < 180; a += 60) {
+      var r = document.createElementNS(NS, 'rect');
+      r.setAttribute('x', '-9'); r.setAttribute('y', '-50'); r.setAttribute('width', '18'); r.setAttribute('height', '100');
+      r.setAttribute('transform', 'rotate(' + (a + 15) + ')');
+      svg.appendChild(r);
+    }
+    return svg;
+  }
+
+  function wordmark(tag) {
+    return el(tag || 'h1', { class: 'wordmark' }, ['uma finance', el('small', { text: 'reimbursement tracker' })]);
+  }
+
+  function hero(children) {
+    return el('div', { class: 'hero' }, [asterisk(), el('div', { class: 'hero-box' }, children)]);
+  }
+
   // ---- Auth / API ----
   function signOut() {
     Api.clearToken();
@@ -76,7 +100,7 @@
 
   function render() {
     clear(root);
-    if (screen === 'loading') root.appendChild(el('p', { class: 'center', text: 'Loading…' }));
+    if (screen === 'loading') root.appendChild(el('p', { class: 'loading', text: 'Loading…' }));
     else if (screen === 'signedOut') renderSignedOut();
     else if (screen === 'forbidden') renderForbidden();
     else if (screen === 'error') renderError();
@@ -85,7 +109,11 @@
 
   function renderSignedOut() {
     var box = el('div', { id: 'gsi-button' });
-    root.appendChild(el('div', { class: 'center' }, [el('h1', { text: 'UMA Reimbursements' }), box]));
+    root.appendChild(hero([
+      wordmark(),
+      box,
+      el('p', { class: 'note', text: 'For UMA exec. Sign in with your @berkeley.edu account.' })
+    ]));
     drawButton();
   }
 
@@ -93,61 +121,64 @@
     var box = document.getElementById('gsi-button');
     if (!gsiLoaded || !box || !window.google) return;
     google.accounts.id.initialize({ client_id: window.APP_CONFIG.GOOGLE_CLIENT_ID, callback: onCredential, auto_select: true });
-    google.accounts.id.renderButton(box, { theme: 'outline', size: 'large' });
+    google.accounts.id.renderButton(box, { theme: 'outline', size: 'large', shape: 'pill', text: 'signin_with' });
   }
 
   function renderForbidden() {
-    root.appendChild(el('div', { class: 'center' }, [
-      el('h1', { text: 'UMA Reimbursements' }),
-      el('p', { text: "Your account doesn't have access. Ask the director of finance to add you." }),
-      el('button', { text: 'Sign out', on: { click: signOut } })
+    root.appendChild(hero([
+      wordmark(),
+      el('p', { text: "This account doesn't have access. Ask the director of finance to add you, then sign in again." }),
+      el('div', { class: 'actions' }, [el('button', { class: 'on-color', text: 'Sign out', on: { click: signOut } })])
     ]));
   }
 
   function renderError() {
-    root.appendChild(el('div', { class: 'center' }, [
-      el('h1', { text: 'UMA Reimbursements' }),
-      el('p', { class: 'neg', text: screenMsg }),
-      el('button', { text: 'Retry', on: { click: load } }),
-      ' ',
-      el('button', { text: 'Sign out', on: { click: signOut } })
+    root.appendChild(hero([
+      wordmark(),
+      el('p', { text: screenMsg }),
+      el('div', { class: 'actions' }, [
+        el('button', { class: 'on-color', text: 'Try again', on: { click: load } }),
+        el('button', { class: 'on-color', text: 'Sign out', on: { click: signOut } })
+      ])
     ]));
   }
 
   function renderMain() {
     var isDir = state.user.isDirector;
-    root.appendChild(el('div', { class: 'header' }, [
-      el('h1', { text: 'UMA Reimbursements' }),
-      el('div', { class: 'who' }, [
-        el('span', { text: state.user.email + (isDir ? ' (director)' : '') }),
-        el('button', { text: 'Sign out', on: { click: signOut } })
+    root.appendChild(el('header', { class: 'band' }, [
+      asterisk(),
+      el('div', { class: 'band-inner' }, [
+        wordmark(),
+        el('div', { class: 'who' }, [
+          el('span', {}, [state.user.email, isDir ? el('span', { class: 'role', text: 'editor' }) : null]),
+          el('button', { class: 'on-color', text: 'Sign out', on: { click: signOut } })
+        ])
       ])
     ]));
     root.appendChild(el('h2', { text: 'Budgets' }));
-    root.appendChild(budgetTable());
+    root.appendChild(budgetPanel());
     root.appendChild(el('h2', { text: 'Reimbursements' }));
     renderRequests(isDir);
     if (isDir) renderOneOffs();
   }
 
-  function budgetTable() {
+  // One row per budget line: name, what's left, a bar of how much is used.
+  function budgetPanel() {
     var rows = state.budgetLines.map(function (l) {
-      return el('tr', {}, [
-        el('td', { text: l.name }),
-        el('td', { class: 'num', text: F.formatCurrency(l.budget) }),
-        el('td', { class: 'num', text: F.formatCurrency(l.spent) }),
-        el('td', { class: 'num' + (l.remaining < 0 ? ' neg' : ''), text: F.formatCurrency(l.remaining) })
+      var over = l.remaining < 0;
+      var used = l.budget > 0 ? Math.min(100, Math.max(0, (l.spent / l.budget) * 100)) : (l.spent > 0 ? 100 : 0);
+      return el('div', { class: 'line' }, [
+        el('div', { class: 'line-name', text: l.name }),
+        el('div', { class: 'line-left' + (over ? ' neg' : '') , text: over ? F.formatCurrency(-l.remaining) + ' over' : F.formatCurrency(l.remaining) + ' left' }),
+        el('div', { class: 'bar', title: Math.round(used) + '% used' }, [el('i', { class: over ? 'over' : '', style: 'width:' + used + '%' })]),
+        el('div', { class: 'line-sub', text: F.formatCurrency(l.spent) + ' spent of ' + F.formatCurrency(l.budget) })
       ]);
     });
-    rows.push(el('tr', {}, [
-      el('td', { text: 'Unassigned' }), el('td', { class: 'num', text: '' }),
-      el('td', { class: 'num', text: F.formatCurrency(state.unassignedTotal) }), el('td', { class: 'num', text: '' })
+    rows.push(el('div', { class: 'line unassigned' }, [
+      el('div', { class: 'line-name', text: 'Not yet assigned to a budget' }),
+      el('div', { class: 'line-left', text: F.formatCurrency(state.unassignedTotal) })
     ]));
-    var head = el('tr', {}, [
-      el('th', { text: 'Name' }), el('th', { class: 'num', text: 'Budget' }),
-      el('th', { class: 'num', text: 'Spent' }), el('th', { class: 'num', text: 'Remaining' })
-    ]);
-    return el('div', { class: 'table-wrap' }, [el('table', {}, [el('thead', {}, [head]), el('tbody', {}, rows)])]);
+    return el('div', { class: 'panel' }, rows);
   }
 
   // ---- Requests ----
@@ -163,7 +194,10 @@
     state.budgetLines.forEach(function (l) { group(l.name, function (r) { return r.budgetLine === l.name; }); });
     if (!state.requests.length) root.appendChild(el('p', { class: 'empty', text: 'No reimbursement requests yet.' }));
     groups.forEach(function (g) {
-      root.appendChild(el('h3', { text: g.title === 'Unassigned' ? 'Unassigned — ' + F.formatCurrency(state.unassignedTotal) : g.title }));
+      root.appendChild(el('h3', {}, [
+        g.title === 'Unassigned' ? 'Not yet assigned' : g.title,
+        el('span', { class: 'count', text: g.title === 'Unassigned' ? F.formatCurrency(state.unassignedTotal) : g.list.length + (g.list.length === 1 ? ' request' : ' requests') })
+      ]));
       g.list.forEach(function (r) { root.appendChild(requestCard(r, isDir)); });
     });
     if (cancelled.length) {
@@ -186,27 +220,27 @@
     (r.items || []).forEach(function (it) {
       (it.receipts || []).forEach(function (u) {
         if (typeof u === 'string' && u.indexOf('https://') === 0) {
-          if (links.length) links.push(' · ');
-          links.push(el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', text: 'Receipt ' + (Math.floor(links.length / 2) + 1) }));
+          links.push(el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', text: 'Receipt ' + (links.length + 1) }));
         }
       });
     });
 
-    var stages = el('div', { class: 'stages', title: F.stageLabel(r.stage) });
-    for (var i = 1; i <= 5; i++) stages.appendChild(el('span', { class: i <= r.stage ? 'on' : '', text: F.stageLabel(i).replace('Stage ', 'S') }));
+    var stages = el('div', { class: 'stages', title: F.stageLabel(r.stage) + ' of 5' });
+    for (var i = 1; i <= 5; i++) stages.appendChild(el('span', { class: i <= r.stage ? 'on' : '', text: String(i) }));
 
     var card = el('div', { class: 'card' + (r.cancelled ? ' cancelled' : '') }, [
-      el('div', { class: 'card-top' }, [
-        el('div', {}, [el('div', { class: 'card-name', text: r.name }), el('div', { class: 'meta', text: r.date + (r.type ? ' · ' + r.type : '') })]),
-        amount
+      el('div', { class: 'card-top' }, [el('div', { class: 'card-name', text: r.name }), amount]),
+      el('div', { class: 'meta' }, [
+        el('span', { text: r.date }),
+        r.type ? el('span', { text: r.type }) : null,
+        r.budgetLine && !r.orphaned ? el('span', { class: 'tag', text: r.budgetLine }) : null,
+        r.orphaned ? el('span', { class: 'badge', text: 'Budget line not found' }) : null
       ]),
       el('div', { class: 'desc', text: r.description }),
-      vendors ? el('div', { class: 'meta', text: 'Vendor: ' + vendors }) : null,
-      r.paymentMethod ? el('div', { class: 'meta', text: 'Payment: ' + r.paymentMethod }) : null,
-      links.length ? el('div', { class: 'meta' }, links) : null,
-      r.orphaned ? el('div', { class: 'badge', text: 'Budget line not found' }) : null,
-      stages,
-      el('div', { class: 'meta', text: F.stageLabel(r.stage) })
+      vendors ? el('div', { class: 'meta', text: vendors }) : null,
+      r.paymentMethod ? el('div', { class: 'meta', text: 'Payback: ' + r.paymentMethod }) : null,
+      links.length ? el('div', { class: 'links' }, links) : null,
+      el('div', { class: 'stage-row' }, [stages, el('span', { class: 'stage-label', text: F.stageLabel(r.stage) })])
     ]);
     if (isDir) card.appendChild(requestControls(r));
     return card;
@@ -315,7 +349,7 @@
         if (window.confirm(o.amount < 0 ? 'Delete this refund?' : 'Delete this one-off expense?')) mutate('deleteOneOff', { id: o.id }, [edit, del], err);
       });
       card.appendChild(el('div', { class: 'card-top' }, [
-        el('div', {}, [el('div', { class: 'card-name', text: o.description }), el('div', { class: 'meta', text: o.date + ' · ' + (o.budgetLine || 'Unassigned') })]),
+        el('div', {}, [el('div', { class: 'card-name', text: o.description }), el('div', { class: 'meta' }, [el('span', { text: o.date }), el('span', { class: 'tag', text: o.budgetLine || 'Unassigned' })])]),
         el('span', { class: o.amount < 0 ? 'amount refund' : 'amount', text: F.formatOneOffAmount(o.amount) })
       ]));
       card.appendChild(el('div', { class: 'controls' }, [edit, del, err]));
