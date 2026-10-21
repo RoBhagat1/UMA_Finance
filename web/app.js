@@ -5,6 +5,17 @@
   var screen = 'loading'; // loading | signedOut | forbidden | main | error
   var screenMsg = '';
   var gsiLoaded = false;
+  // Which categories and requests are expanded; kept across re-renders.
+  var openGroups = {};
+  var openRequests = {};
+
+  // A <details> that remembers whether it is open in `memory[key]`.
+  function collapsible(cls, key, memory, summaryChildren, bodyChildren) {
+    var d = el('details', { class: cls }, [el('summary', {}, summaryChildren)].concat(bodyChildren));
+    d.open = !!memory[key];
+    d.addEventListener('toggle', function () { memory[key] = d.open; });
+    return d;
+  }
 
   // ---- DOM helpers (all API text goes through textContent) ----
   function el(tag, props, children) {
@@ -194,16 +205,20 @@
     state.budgetLines.forEach(function (l) { group(l.name, function (r) { return r.budgetLine === l.name; }); });
     if (!state.requests.length) root.appendChild(el('p', { class: 'empty', text: 'No reimbursement requests yet.' }));
     groups.forEach(function (g) {
-      root.appendChild(el('h3', {}, [
-        g.title === 'Unassigned' ? 'Not yet assigned' : g.title,
-        el('span', { class: 'count', text: g.title === 'Unassigned' ? F.formatCurrency(state.unassignedTotal) : g.list.length + (g.list.length === 1 ? ' request' : ' requests') })
-      ]));
-      g.list.forEach(function (r) { root.appendChild(requestCard(r, isDir)); });
+      var total = g.list.reduce(function (sum, r) { return sum + (r.amount || 0); }, 0);
+      root.appendChild(collapsible('group', g.title, openGroups, [
+        el('span', { class: 'chev', 'aria-hidden': 'true' }),
+        el('span', { class: 'group-name', text: g.title === 'Unassigned' ? 'Not yet assigned' : g.title }),
+        el('span', { class: 'count', text: g.list.length + (g.list.length === 1 ? ' request' : ' requests') }),
+        el('span', { class: 'group-total', text: F.formatCurrency(Math.round(total * 100) / 100) })
+      ], g.list.map(function (r) { return requestCard(r, isDir); })));
     });
     if (cancelled.length) {
-      var d = el('details', {}, [el('summary', { text: 'Cancelled (' + cancelled.length + ')' })]);
-      cancelled.forEach(function (r) { d.appendChild(requestCard(r, isDir)); });
-      root.appendChild(d);
+      root.appendChild(collapsible('group', '__cancelled', openGroups, [
+        el('span', { class: 'chev', 'aria-hidden': 'true' }),
+        el('span', { class: 'group-name', text: 'Cancelled' }),
+        el('span', { class: 'count', text: cancelled.length + (cancelled.length === 1 ? ' request' : ' requests') })
+      ], cancelled.map(function (r) { return requestCard(r, isDir); })));
     }
   }
 
@@ -228,22 +243,23 @@
     var stages = el('div', { class: 'stages', title: F.stageLabel(r.stage) + ' of 5' });
     for (var i = 1; i <= 5; i++) stages.appendChild(el('span', { class: i <= r.stage ? 'on' : '', text: String(i) }));
 
-    var card = el('div', { class: 'card' + (r.cancelled ? ' cancelled' : '') }, [
-      el('div', { class: 'card-top' }, [el('div', { class: 'card-name', text: r.name }), amount]),
-      el('div', { class: 'meta' }, [
-        el('span', { text: r.date }),
-        r.type ? el('span', { text: r.type }) : null,
-        r.budgetLine && !r.orphaned ? el('span', { class: 'tag', text: r.budgetLine }) : null,
-        r.orphaned ? el('span', { class: 'badge', text: 'Budget line not found' }) : null
-      ]),
-      el('div', { class: 'desc', text: r.description }),
+    // Collapsed: who, how much, when, what. Expanded: vendor, receipts, stage, controls.
+    var body = el('div', { class: 'card-body' }, [
       vendors ? el('div', { class: 'meta', text: vendors }) : null,
       r.paymentMethod ? el('div', { class: 'meta', text: 'Payback: ' + r.paymentMethod }) : null,
       links.length ? el('div', { class: 'links' }, links) : null,
       el('div', { class: 'stage-row' }, [stages, el('span', { class: 'stage-label', text: F.stageLabel(r.stage) })])
     ]);
-    if (isDir) card.appendChild(requestControls(r));
-    return card;
+    if (isDir) body.appendChild(requestControls(r));
+    return collapsible('card' + (r.cancelled ? ' cancelled' : ''), r.id, openRequests, [
+      el('div', { class: 'card-top' }, [el('div', { class: 'card-name', text: r.name }), amount]),
+      el('div', { class: 'meta' }, [
+        el('span', { text: r.date }),
+        r.type ? el('span', { text: r.type }) : null,
+        r.orphaned ? el('span', { class: 'badge', text: 'Budget line not found' }) : null
+      ]),
+      el('div', { class: 'desc', text: r.description })
+    ], [body]);
   }
 
   function requestControls(r) {

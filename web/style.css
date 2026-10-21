@@ -126,7 +126,21 @@ input[type=number] { width: 8.5em; }
 .form { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; background: var(--card); border-radius: 14px; padding: 14px 18px; border: 1.5px dashed #ddd2e6; }
 .form input[type=text] { flex: 1 1 180px; }
 
-details > summary { cursor: pointer; color: var(--muted); margin: 22px 0 12px; }
+/* Collapsible categories and request cards */
+details > summary { cursor: pointer; list-style: none; }
+details > summary::-webkit-details-marker { display: none; }
+.group { margin-bottom: 8px; }
+.group > summary { display: flex; align-items: center; gap: 10px; padding: 12px 4px; border-radius: 10px; }
+.group > summary:hover { background: rgba(169,107,143,.06); }
+.group-name { font-weight: 500; }
+.group .count { color: var(--muted); font-size: .9rem; }
+.group-total { margin-left: auto; font-weight: 500; font-variant-numeric: tabular-nums; }
+.chev { width: 9px; height: 9px; flex: none; border-right: 2px solid var(--mauve); border-bottom: 2px solid var(--mauve); transform: rotate(-45deg); transition: transform .15s ease; margin: 0 4px 0 2px; }
+details[open] > summary .chev { transform: rotate(45deg); }
+.group > .card { margin-left: 4px; }
+.card > summary { display: block; }
+.card > summary .desc { margin-bottom: 0; }
+.card-body { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
 .empty { color: var(--muted); }
 .loading { text-align: center; padding: 80px 0; color: var(--muted); }
 
