@@ -1,0 +1,337 @@
+(function () {
+  var F = window.Format;
+  var root = document.getElementById('app');
+  var state = null;
+  var screen = 'loading'; // loading | signedOut | forbidden | main | error
+  var screenMsg = '';
+  var gsiLoaded = false;
+
+  // ---- DOM helpers (all API text goes through textContent) ----
+  function el(tag, props, children) {
+    var n = document.createElement(tag);
+    props = props || {};
+    Object.keys(props).forEach(function (k) {
+      if (k === 'class') n.className = props[k];
+      else if (k === 'text') n.textContent = props[k];
+      else if (k === 'on') Object.keys(props.on).forEach(function (ev) { n.addEventListener(ev, props.on[ev]); });
+      else n[k] = props[k];
+    });
+    (children || []).forEach(function (c) { if (c) n.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return n;
+  }
+  function clear(n) { while (n.firstChild) n.removeChild(n.firstChild); }
+
+  // ---- Auth / API ----
+  function signOut() {
+    Api.clearToken();
+    state = null;
+    try { if (window.google && google.accounts) google.accounts.id.disableAutoSelect(); } catch (e) { /* ignore */ }
+    show('signedOut');
+  }
+
+  function onCredential(resp) {
+    Api.setToken(resp.credential);
+    load();
+  }
+
+  function handleResult(res) {
+    if (res.ok) { state = res.state; return true; }
+    if (res.error === 'unauthenticated') { Api.clearToken(); state = null; show('signedOut'); }
+    return false;
+  }
+
+  function load() {
+    show('loading');
+    Api.call('getState', {}).then(function (res) {
+      if (res.ok) { state = res.state; show('main'); return; }
+      if (res.error === 'unauthenticated') { Api.clearToken(); show('signedOut'); return; }
+      if (res.error === 'forbidden') { show('forbidden'); return; }
+      screenMsg = res.message || 'Something went wrong.';
+      show('error');
+    });
+  }
+
+  // Run a mutation. `ctl` = elements to disable; `errBox` = element to show failure in.
+  function mutate(action, payload, ctl, errBox) {
+    ctl.forEach(function (c) { c.disabled = true; });
+    errBox.textContent = '';
+    Api.call(action, payload).then(function (res) {
+      if (handleResult(res)) { render(); return; }
+      if (res.error === 'unauthenticated') return;
+      var msg = res.message || 'Something went wrong.';
+      if (action === 'updateRequest' && payload.id) {
+        // Re-render so controls show what is actually saved, then show the error.
+        render();
+        var again = root.querySelector('.err[data-req="' + String(payload.id).replace(/"/g, '') + '"]');
+        if (again) again.textContent = msg;
+        return;
+      }
+      ctl.forEach(function (c) { c.disabled = false; });
+      errBox.textContent = msg;
+    });
+  }
+
+  // ---- Screens ----
+  function show(s) { screen = s; render(); }
+
+  function render() {
+    clear(root);
+    if (screen === 'loading') root.appendChild(el('p', { class: 'center', text: 'Loading…' }));
+    else if (screen === 'signedOut') renderSignedOut();
+    else if (screen === 'forbidden') renderForbidden();
+    else if (screen === 'error') renderError();
+    else renderMain();
+  }
+
+  function renderSignedOut() {
+    var box = el('div', { id: 'gsi-button' });
+    root.appendChild(el('div', { class: 'center' }, [el('h1', { text: 'UMA Reimbursements' }), box]));
+    drawButton();
+  }
+
+  function drawButton() {
+    var box = document.getElementById('gsi-button');
+    if (!gsiLoaded || !box || !window.google) return;
+    google.accounts.id.initialize({ client_id: window.APP_CONFIG.GOOGLE_CLIENT_ID, callback: onCredential, auto_select: true });
+    google.accounts.id.renderButton(box, { theme: 'outline', size: 'large' });
+  }
+
+  function renderForbidden() {
+    root.appendChild(el('div', { class: 'center' }, [
+      el('h1', { text: 'UMA Reimbursements' }),
+      el('p', { text: "Your account doesn't have access. Ask the director of finance to add you." }),
+      el('button', { text: 'Sign out', on: { click: signOut } })
+    ]));
+  }
+
+  function renderError() {
+    root.appendChild(el('div', { class: 'center' }, [
+      el('h1', { text: 'UMA Reimbursements' }),
+      el('p', { class: 'neg', text: screenMsg }),
+      el('button', { text: 'Retry', on: { click: load } }),
+      ' ',
+      el('button', { text: 'Sign out', on: { click: signOut } })
+    ]));
+  }
+
+  function renderMain() {
+    var isDir = state.user.isDirector;
+    root.appendChild(el('div', { class: 'header' }, [
+      el('h1', { text: 'UMA Reimbursements' }),
+      el('div', { class: 'who' }, [
+        el('span', { text: state.user.email + (isDir ? ' (director)' : '') }),
+        el('button', { text: 'Sign out', on: { click: signOut } })
+      ])
+    ]));
+    root.appendChild(el('h2', { text: 'Budgets' }));
+    root.appendChild(budgetTable());
+    root.appendChild(el('h2', { text: 'Reimbursements' }));
+    renderRequests(isDir);
+    if (isDir) renderOneOffs();
+  }
+
+  function budgetTable() {
+    var rows = state.budgetLines.map(function (l) {
+      return el('tr', {}, [
+        el('td', { text: l.name }),
+        el('td', { class: 'num', text: F.formatCurrency(l.budget) }),
+        el('td', { class: 'num', text: F.formatCurrency(l.spent) }),
+        el('td', { class: 'num' + (l.remaining < 0 ? ' neg' : ''), text: F.formatCurrency(l.remaining) })
+      ]);
+    });
+    rows.push(el('tr', {}, [
+      el('td', { text: 'Unassigned' }), el('td', { class: 'num', text: '' }),
+      el('td', { class: 'num', text: F.formatCurrency(state.unassignedTotal) }), el('td', { class: 'num', text: '' })
+    ]));
+    var head = el('tr', {}, [
+      el('th', { text: 'Name' }), el('th', { class: 'num', text: 'Budget' }),
+      el('th', { class: 'num', text: 'Spent' }), el('th', { class: 'num', text: 'Remaining' })
+    ]);
+    return el('div', { class: 'table-wrap' }, [el('table', {}, [el('thead', {}, [head]), el('tbody', {}, rows)])]);
+  }
+
+  // ---- Requests ----
+  function renderRequests(isDir) {
+    var active = state.requests.filter(function (r) { return !r.cancelled; });
+    var cancelled = state.requests.filter(function (r) { return r.cancelled; });
+    var groups = [];
+    function group(title, pred) {
+      var list = active.filter(pred);
+      if (list.length) groups.push({ title: title, list: list });
+    }
+    group('Unassigned', function (r) { return !r.budgetLine || r.orphaned; });
+    state.budgetLines.forEach(function (l) { group(l.name, function (r) { return r.budgetLine === l.name; }); });
+    if (!state.requests.length) root.appendChild(el('p', { class: 'empty', text: 'No reimbursement requests yet.' }));
+    groups.forEach(function (g) {
+      root.appendChild(el('h3', { text: g.title === 'Unassigned' ? 'Unassigned — ' + F.formatCurrency(state.unassignedTotal) : g.title }));
+      g.list.forEach(function (r) { root.appendChild(requestCard(r, isDir)); });
+    });
+    if (cancelled.length) {
+      var d = el('details', {}, [el('summary', { text: 'Cancelled (' + cancelled.length + ')' })]);
+      cancelled.forEach(function (r) { d.appendChild(requestCard(r, isDir)); });
+      root.appendChild(d);
+    }
+  }
+
+  function requestCard(r, isDir) {
+    var amount = r.amount === null || r.amount === undefined
+      ? el('span', { class: 'badge', text: 'Needs amount' })
+      : el('span', { class: 'amount', text: F.formatCurrency(r.amount) });
+
+    var vendors = (r.items || []).map(function (it) {
+      return it.vendor + (it.location ? ' (' + it.location + ')' : '');
+    }).filter(Boolean).join(', ');
+
+    var links = [];
+    (r.items || []).forEach(function (it) {
+      (it.receipts || []).forEach(function (u) {
+        if (typeof u === 'string' && u.indexOf('https://') === 0) {
+          if (links.length) links.push(' · ');
+          links.push(el('a', { href: u, target: '_blank', rel: 'noopener noreferrer', text: 'Receipt ' + (Math.floor(links.length / 2) + 1) }));
+        }
+      });
+    });
+
+    var stages = el('div', { class: 'stages', title: F.stageLabel(r.stage) });
+    for (var i = 1; i <= 5; i++) stages.appendChild(el('span', { class: i <= r.stage ? 'on' : '', text: F.stageLabel(i).replace('Stage ', 'S') }));
+
+    var card = el('div', { class: 'card' + (r.cancelled ? ' cancelled' : '') }, [
+      el('div', { class: 'card-top' }, [
+        el('div', {}, [el('div', { class: 'card-name', text: r.name }), el('div', { class: 'meta', text: r.date + (r.type ? ' · ' + r.type : '') })]),
+        amount
+      ]),
+      el('div', { class: 'desc', text: r.description }),
+      vendors ? el('div', { class: 'meta', text: 'Vendor: ' + vendors }) : null,
+      r.paymentMethod ? el('div', { class: 'meta', text: 'Payment: ' + r.paymentMethod }) : null,
+      links.length ? el('div', { class: 'meta' }, links) : null,
+      r.orphaned ? el('div', { class: 'badge', text: 'Budget line not found' }) : null,
+      stages,
+      el('div', { class: 'meta', text: F.stageLabel(r.stage) })
+    ]);
+    if (isDir) card.appendChild(requestControls(r));
+    return card;
+  }
+
+  function requestControls(r) {
+    var err = el('div', { class: 'err' });
+    err.setAttribute('data-req', String(r.id));
+    var lineSel = el('select', { title: 'Budget line' }, [el('option', { value: '', text: 'Unassigned' })]);
+    var names = state.budgetLines.map(function (l) { return l.name; });
+    if (r.budgetLine && names.indexOf(r.budgetLine) < 0) names.push(r.budgetLine);
+    names.forEach(function (n) { lineSel.appendChild(el('option', { value: n, text: n })); });
+    lineSel.value = r.budgetLine || '';
+
+    var stageSel = el('select', { title: 'Stage' });
+    for (var i = 1; i <= 5; i++) stageSel.appendChild(el('option', { value: String(i), text: F.stageLabel(i) }));
+    stageSel.value = String(r.stage);
+
+    var amt = el('input', { type: 'number', step: '0.01', min: '0', placeholder: 'Override $', title: 'Amount override' });
+    if (r.amountOverridden && r.amount !== null && r.amount !== undefined) amt.value = String(r.amount);
+    var setBtn = el('button', { text: 'Set amount' });
+    var clrBtn = el('button', { text: 'Clear override' });
+    var cancelBtn = el('button', { class: r.cancelled ? '' : 'danger', text: r.cancelled ? 'Restore' : 'Cancel request' });
+    var all = [lineSel, stageSel, amt, setBtn, clrBtn, cancelBtn];
+    if (!r.amountOverridden) clrBtn.style.display = 'none';
+
+    lineSel.addEventListener('change', function () {
+      mutate('updateRequest', { id: r.id, budgetLine: lineSel.value || null }, all, err);
+    });
+    stageSel.addEventListener('change', function () {
+      mutate('updateRequest', { id: r.id, stage: Number(stageSel.value) }, all, err);
+    });
+    setBtn.addEventListener('click', function () {
+      var v = parseFloat(amt.value);
+      if (!(v >= 0)) { err.textContent = 'Enter a valid amount.'; return; }
+      mutate('updateRequest', { id: r.id, amountOverride: v }, all, err);
+    });
+    clrBtn.addEventListener('click', function () {
+      mutate('updateRequest', { id: r.id, amountOverride: null }, all, err);
+    });
+    cancelBtn.addEventListener('click', function () {
+      mutate('updateRequest', { id: r.id, cancelled: !r.cancelled }, all, err);
+    });
+    return el('div', { class: 'controls' }, [lineSel, stageSel, amt, setBtn, clrBtn, cancelBtn, err]);
+  }
+
+  // ---- One-offs ----
+  function lineSelect(value) {
+    var s = el('select', { title: 'Budget line' });
+    var names = state.budgetLines.map(function (l) { return l.name; });
+    if (value && names.indexOf(value) < 0) names.push(value);
+    names.forEach(function (n) { s.appendChild(el('option', { value: n, text: n })); });
+    if (value) s.value = value;
+    return s;
+  }
+
+  function oneOffFields(o) {
+    return {
+      date: el('input', { type: 'date', value: o ? o.date : '', title: 'Date' }),
+      desc: el('input', { type: 'text', value: o ? o.description : '', placeholder: 'Description', title: 'Description' }),
+      amount: el('input', { type: 'number', step: '0.01', min: '0.01', value: o ? String(o.amount) : '', placeholder: 'Amount', title: 'Amount' }),
+      line: lineSelect(o ? o.budgetLine : '')
+    };
+  }
+
+  function readFields(f, err) {
+    var amount = parseFloat(f.amount.value);
+    if (!f.date.value || !f.desc.value.trim() || !(amount > 0) || !f.line.value) {
+      err.textContent = 'Fill in date, description, a positive amount, and a budget line.';
+      return null;
+    }
+    return { date: f.date.value, description: f.desc.value.trim(), amount: amount, budgetLine: f.line.value };
+  }
+
+  function renderOneOffs() {
+    root.appendChild(el('h2', { text: 'One-off expenses' }));
+    if (!state.oneOffs.length) root.appendChild(el('p', { class: 'empty', text: 'No one-off expenses.' }));
+    state.oneOffs.forEach(function (o) { root.appendChild(oneOffRow(o)); });
+
+    var f = oneOffFields(null);
+    var err = el('div', { class: 'err' });
+    var add = el('button', { class: 'primary', text: 'Add' });
+    add.addEventListener('click', function () {
+      var p = readFields(f, err);
+      if (p) mutate('addOneOff', p, [f.date, f.desc, f.amount, f.line, add], err);
+    });
+    root.appendChild(el('div', { class: 'form' }, [f.date, f.desc, f.amount, f.line, add, err]));
+  }
+
+  function oneOffRow(o) {
+    var card = el('div', { class: 'card' });
+    function view() {
+      clear(card);
+      var err = el('div', { class: 'err' });
+      var edit = el('button', { text: 'Edit' });
+      var del = el('button', { class: 'danger', text: 'Delete' });
+      edit.addEventListener('click', editMode);
+      del.addEventListener('click', function () {
+        if (window.confirm('Delete this one-off expense?')) mutate('deleteOneOff', { id: o.id }, [edit, del], err);
+      });
+      card.appendChild(el('div', { class: 'card-top' }, [
+        el('div', {}, [el('div', { class: 'card-name', text: o.description }), el('div', { class: 'meta', text: o.date + ' · ' + (o.budgetLine || 'Unassigned') })]),
+        el('span', { class: 'amount', text: F.formatCurrency(o.amount) })
+      ]));
+      card.appendChild(el('div', { class: 'controls' }, [edit, del, err]));
+    }
+    function editMode() {
+      clear(card);
+      var f = oneOffFields(o);
+      var err = el('div', { class: 'err' });
+      var save = el('button', { class: 'primary', text: 'Save' });
+      var cancel = el('button', { text: 'Cancel', on: { click: view } });
+      save.addEventListener('click', function () {
+        var p = readFields(f, err);
+        if (p) { p.id = o.id; mutate('updateOneOff', p, [f.date, f.desc, f.amount, f.line, save, cancel], err); }
+      });
+      card.appendChild(el('div', { class: 'controls' }, [f.date, f.desc, f.amount, f.line, save, cancel, err]));
+    }
+    view();
+    return card;
+  }
+
+  // ---- Boot ----
+  window.App = { gsiReady: function () { gsiLoaded = true; if (screen === 'signedOut') drawButton(); } };
+  if (window.google && google.accounts) gsiLoaded = true;
+
+  if (Api.getToken()) load(); else show('signedOut');
+})();
