@@ -6,5 +6,5 @@ var CONFIG = {
   ACCESS_SHEET_NAME: "Site Access",
   REIMB_HEADER_ROW: 1,
   DIRECTOR_EMAIL: "REPLACE_ME@gmail.com",
-  GOOGLE_CLIENT_ID: "REPLACE_ME.apps.googleusercontent.com"
+  GOOGLE_CLIENT_ID: "450711685592-dnaija6i662rvcgjj7j8goavnstu0dc8.apps.googleusercontent.com"
 };
